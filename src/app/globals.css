@@ -1,26 +1,94 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Alyn Brand Colors */
+  --alyn-rosegold: #CB8A7C;
+  --alyn-rosegold-dark: #9D5E55;
+  --alyn-cream: #FFF4F1;
+  --alyn-white: #FFFFFF;
+  --alyn-black: #2D1B18;
+
+  /* Semantic Colors */
+  --background: #FFFFFF;
+  --foreground: #2D1B18;
+  --muted: #F5F0EE;
+  --muted-foreground: #8A7570;
+  --border: #E8DDD9;
+  --ring: #CB8A7C;
+
+  /* Reader Themes */
+  --reader-bg: #FFFFFF;
+  --reader-text: #2D1B18;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+
+  /* Brand Colors */
+  --color-rosegold: #CB8A7C;
+  --color-rosegold-light: #D9A99E;
+  --color-rosegold-dark: #9D5E55;
+  --color-cream: #FFF4F1;
+  --color-cream-dark: #F5E6E1;
+  --color-brand-black: #2D1B18;
+
+  /* Coin */
+  --color-coin: #D4A034;
+  --color-coin-light: #F5E6C8;
+
+  /* Fonts */
+  --font-sans: 'Noto Sans Thai', sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Reader Theme: Sepia */
+[data-reader-theme="sepia"] {
+  --reader-bg: #F4ECD8;
+  --reader-text: #5B4636;
+}
+
+/* Reader Theme: Night */
+[data-reader-theme="night"] {
+  --reader-bg: #1A1A2E;
+  --reader-text: #C8C8D0;
+}
+
+/* Reader Theme: Dark */
+[data-reader-theme="dark"] {
+  --reader-bg: #121212;
+  --reader-text: #B0B0B0;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Noto Sans Thai', sans-serif;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--muted);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--alyn-rosegold);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--alyn-rosegold-dark);
+}
+
+/* Selection color */
+::selection {
+  background: #CB8A7C40;
+  color: var(--alyn-rosegold-dark);
 }

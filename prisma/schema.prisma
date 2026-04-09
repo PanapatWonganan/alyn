@@ -1,0 +1,235 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Role: READER | WRITER | ADMIN
+// NovelStatus: DRAFT | ONGOING | COMPLETED | HIATUS
+// TransactionType: TOPUP | PURCHASE | EARNING | DONATION_SENT | DONATION_RECEIVED
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  name          String
+  penName       String?
+  avatar        String?
+  bio           String?
+  role          String   @default("READER")
+  coinBalance       Int       @default(0)
+  resetToken        String?   @unique
+  resetTokenExpiry  DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  novels            Novel[]
+  chapters          Chapter[]
+  comments          Comment[]
+  bookmarks         Bookmark[]
+  readingProgress   ReadingProgress[]
+  transactions      CoinTransaction[]
+  donationsSent     Donation[]         @relation("DonationSender")
+  donationsReceived Donation[]         @relation("DonationReceiver")
+  notifications     Notification[]
+  deviceTokens      DeviceToken[]
+
+  @@map("users")
+}
+
+model Genre {
+  id     String  @id @default(cuid())
+  name   String  @unique
+  slug   String  @unique
+  icon   String?
+  novels Novel[]
+
+  @@map("genres")
+}
+
+model Novel {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  synopsis    String
+  coverImage  String?
+  status      String   @default("DRAFT")
+  isAdult     Boolean  @default(false)
+  viewCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  genreId String
+  genre   Genre  @relation(fields: [genreId], references: [id])
+
+  chapters  Chapter[]
+  bookmarks Bookmark[]
+  tags      Tag[]
+
+  @@index([authorId])
+  @@index([genreId])
+  @@index([status])
+  @@map("novels")
+}
+
+model Chapter {
+  id          String    @id @default(cuid())
+  number      Int
+  title       String
+  content     String
+  wordCount   Int       @default(0)
+  coinPrice   Int       @default(0)
+  isFree      Boolean   @default(true)
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  novelId String
+  novel   Novel  @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+
+  comments        Comment[]
+  purchases       ChapterPurchase[]
+  readingProgress ReadingProgress[]
+
+  @@unique([novelId, number])
+  @@index([novelId])
+  @@map("chapters")
+}
+
+model Tag {
+  id     String  @id @default(cuid())
+  name   String  @unique
+  novels Novel[]
+
+  @@map("tags")
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  novelId String
+  novel   Novel  @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, novelId])
+  @@map("bookmarks")
+}
+
+model ReadingProgress {
+  id        String   @id @default(cuid())
+  updatedAt DateTime @updatedAt
+
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  chapterId String
+  chapter   Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chapterId])
+  @@map("reading_progress")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  chapterId String
+  chapter   Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@index([chapterId])
+  @@map("comments")
+}
+
+model ChapterPurchase {
+  id        String   @id @default(cuid())
+  coinSpent Int
+  createdAt DateTime @default(now())
+
+  userId    String
+  chapterId String
+  chapter   Chapter @relation(fields: [chapterId], references: [id])
+
+  @@unique([userId, chapterId])
+  @@map("chapter_purchases")
+}
+
+model CoinTransaction {
+  id          String   @id @default(cuid())
+  type        String
+  amount      Int
+  description String
+  createdAt   DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@map("coin_transactions")
+}
+
+model Donation {
+  id        String   @id @default(cuid())
+  amount    Int
+  message   String?
+  createdAt DateTime @default(now())
+
+  senderId   String
+  sender     User   @relation("DonationSender", fields: [senderId], references: [id])
+
+  receiverId String
+  receiver   User   @relation("DonationReceiver", fields: [receiverId], references: [id])
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@map("donations")
+}
+
+// NotificationType: NEW_CHAPTER | COMMENT | DONATION | SYSTEM
+model Notification {
+  id        String   @id @default(cuid())
+  type      String
+  title     String
+  message   String
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+model DeviceToken {
+  id        String   @id @default(cuid())
+  token     String
+  platform  String   // "ios" | "android" | "web"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, token])
+  @@index([userId])
+  @@map("device_tokens")
+}
