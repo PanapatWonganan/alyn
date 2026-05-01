@@ -4,6 +4,7 @@ import '../api/api_client.dart';
 import '../api/models.dart';
 import '../api/services.dart';
 import '../data/models.dart';
+import '../services/chapter_cache.dart';
 import '../state/auth_provider.dart';
 import '../state/novels_provider.dart';
 import '../theme/palette.dart';
@@ -31,6 +32,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   bool _loading = true;
   String? _error;
   late String _currentChapterId;
+  final ChapterCache _cache = ChapterCache();
 
   @override
   void initState() {
@@ -39,13 +41,37 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _load();
   }
 
+  /// Load order:
+  ///   1. Show cached chapter immediately if present (offline-first feel).
+  ///   2. Fetch fresh data in the background; on success replace and cache.
+  ///   3. On network failure, keep showing cache; only surface an error
+  ///      when there is nothing to show.
+  /// Locked chapters (content == null) are never cached.
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
     });
+
+    // Capture the provider synchronously before awaits — analyzer flag.
+    final novels = context.read<NovelsProvider>();
+
+    final cached = await _cache.read(_currentChapterId);
+    if (cached != null && mounted) {
+      try {
+        final cachedRes = ChapterResponse.fromJson(cached);
+        setState(() {
+          _data = cachedRes;
+          _loading = false;
+        });
+      } catch (_) {
+        // Corrupted cache — ignore and let the network path fill it.
+        await _cache.delete(_currentChapterId);
+      }
+    }
+
     try {
-      final res = await context.read<NovelsProvider>().chapter(
+      final res = await novels.chapter(
             widget.book.id,
             _currentChapterId,
           );
@@ -54,18 +80,32 @@ class _ReaderScreenState extends State<ReaderScreen> {
         _data = res;
         _loading = false;
       });
+      // Only cache fully-readable chapters.
+      final c = res.chapter;
+      if (!c.locked && c.content != null && c.content!.isNotEmpty) {
+        await _cache.write(_currentChapterId, res.toJson());
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
-      setState(() {
-        _error = e.message;
-        _loading = false;
-      });
-    } catch (e) {
+      // If we already have something on screen from the cache, don't blow it away.
+      if (_data == null) {
+        setState(() {
+          _error = e.message;
+          _loading = false;
+        });
+      } else {
+        setState(() => _loading = false);
+      }
+    } catch (_) {
       if (!mounted) return;
-      setState(() {
-        _error = 'โหลดไม่สำเร็จ';
-        _loading = false;
-      });
+      if (_data == null) {
+        setState(() {
+          _error = 'โหลดไม่สำเร็จ';
+          _loading = false;
+        });
+      } else {
+        setState(() => _loading = false);
+      }
     }
   }
 

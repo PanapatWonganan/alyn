@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'api/api_client.dart';
 import 'api/models.dart';
+import 'api/services.dart';
+import 'data/adapters.dart';
 import 'data/models.dart';
 import 'screens/checkin_screen.dart';
 import 'screens/detail_screen.dart';
@@ -14,6 +18,7 @@ import 'screens/profile_screen.dart';
 import 'screens/reader_screen.dart';
 import 'screens/wallet_screen.dart';
 import 'screens/writer_screen.dart';
+import 'services/deep_link_service.dart';
 import 'state/auth_provider.dart';
 import 'state/novels_provider.dart';
 import 'theme/palette.dart';
@@ -94,6 +99,46 @@ class _AppShellState extends State<_AppShell> {
   String _tab = 'home';
   Book? _activeBook;
   String? _activeChapterId;
+  late final DeepLinkService _deepLinks;
+  StreamSubscription<DeepLinkTarget>? _deepLinkSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _deepLinks = DeepLinkService();
+    _deepLinkSub = _deepLinks.stream.listen(_handleDeepLink);
+    _deepLinks.bootstrap();
+  }
+
+  @override
+  void dispose() {
+    _deepLinkSub?.cancel();
+    _deepLinks.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleDeepLink(DeepLinkTarget target) async {
+    // Resolve the novel via the API so we have a Book to render. We hop to
+    // the detail screen first regardless of kind; for chapter links we
+    // also pre-set the chapter id so reader can mount on top.
+    try {
+      final novel = await NovelService(context.read<AuthProvider>().api)
+          .detail(target.novelId);
+      if (!mounted) return;
+      setState(() {
+        _activeBook = bookFromNovel(novel);
+        if (target.kind == DeepLinkKind.chapter) {
+          _activeChapterId = target.chapterId;
+          _screen = _Screen.reader;
+        } else {
+          _screen = _Screen.detail;
+        }
+      });
+    } catch (_) {
+      // Silently ignore unresolvable deep links — user lands on whatever
+      // screen they were on.
+    }
+  }
 
   void _openBook(Book book, {bool reader = false}) {
     setState(() {

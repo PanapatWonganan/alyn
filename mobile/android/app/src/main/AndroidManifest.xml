@@ -24,6 +24,23 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Custom scheme: alyn://novel/:id, alyn://novel/:id/chapter/:cid -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="alyn"/>
+            </intent-filter>
+            <!-- Web App Links (autoVerify) — requires assetlinks.json on
+                 https://alyn.co/.well-known/assetlinks.json. Off by default
+                 until the launch checklist signs the production keystore. -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="alyn.co"/>
+                <data android:scheme="https" android:host="www.alyn.co"/>
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

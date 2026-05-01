@@ -199,6 +199,19 @@ class ApiChapter {
         publishedAt: _parseDate(j['publishedAt']),
         createdAt: _parseDate(j['createdAt']),
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'number': number,
+        'title': title,
+        if (content != null) 'content': content,
+        'wordCount': wordCount,
+        'coinPrice': coinPrice,
+        'isFree': isFree,
+        'locked': locked,
+        if (publishedAt != null) 'publishedAt': publishedAt!.toIso8601String(),
+        if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
+      };
 }
 
 class ApiUser {

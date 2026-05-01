@@ -172,6 +172,22 @@ class ChapterResponse {
   final ApiChapter? prev;
   final ApiChapter? next;
   const ChapterResponse({required this.chapter, this.prev, this.next});
+
+  Map<String, dynamic> toJson() => {
+        'chapter': chapter.toJson(),
+        if (prev != null) 'prevChapter': prev!.toJson(),
+        if (next != null) 'nextChapter': next!.toJson(),
+      };
+
+  factory ChapterResponse.fromJson(Map<String, dynamic> j) => ChapterResponse(
+        chapter: ApiChapter.fromJson(Map<String, dynamic>.from(j['chapter'] as Map)),
+        prev: j['prevChapter'] is Map
+            ? ApiChapter.fromJson(Map<String, dynamic>.from(j['prevChapter']))
+            : null,
+        next: j['nextChapter'] is Map
+            ? ApiChapter.fromJson(Map<String, dynamic>.from(j['nextChapter']))
+            : null,
+      );
 }
 
 /// Genres — GET /api/genres
