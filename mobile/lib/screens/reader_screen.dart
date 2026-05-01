@@ -4,6 +4,7 @@ import '../api/api_client.dart';
 import '../api/models.dart';
 import '../api/services.dart';
 import '../data/models.dart';
+import '../state/auth_provider.dart';
 import '../state/novels_provider.dart';
 import '../theme/palette.dart';
 import '../theme/typography.dart';
@@ -89,7 +90,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
     } else if (_data == null) {
       body = const SizedBox.shrink();
     } else {
-      body = _ChapterBody(data: _data!, onNext: _goTo);
+      body = _ChapterBody(
+        novelId: widget.book.id,
+        data: _data!,
+        onNext: _goTo,
+        onPurchased: _load,
+      );
     }
 
     return GestureDetector(
@@ -152,9 +158,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
 }
 
 class _ChapterBody extends StatelessWidget {
+  final String novelId;
   final ChapterResponse data;
   final void Function(ApiChapter) onNext;
-  const _ChapterBody({required this.data, required this.onNext});
+  final VoidCallback onPurchased;
+  const _ChapterBody({
+    required this.novelId,
+    required this.data,
+    required this.onNext,
+    required this.onPurchased,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -163,7 +176,11 @@ class _ChapterBody extends StatelessWidget {
 
     // If chapter is locked, show purchase prompt instead of content.
     if (chapter.locked || (chapter.content == null || chapter.content!.isEmpty)) {
-      return _LockedView(chapter: chapter);
+      return _LockedView(
+        novelId: novelId,
+        chapter: chapter,
+        onPurchased: onPurchased,
+      );
     }
 
     final paragraphs = _extractParagraphs(chapter.content!);
@@ -281,13 +298,92 @@ class _ChapterBody extends StatelessWidget {
   }
 }
 
-class _LockedView extends StatelessWidget {
+class _LockedView extends StatefulWidget {
+  final String novelId;
   final ApiChapter chapter;
-  const _LockedView({required this.chapter});
+  final VoidCallback onPurchased;
+  const _LockedView({
+    required this.novelId,
+    required this.chapter,
+    required this.onPurchased,
+  });
+
+  @override
+  State<_LockedView> createState() => _LockedViewState();
+}
+
+class _LockedViewState extends State<_LockedView> {
+  bool _busy = false;
+
+  Future<void> _purchase() async {
+    if (_busy) return;
+    final auth = context.read<AuthProvider>();
+    if (!auth.isAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('กรุณาเข้าสู่ระบบเพื่อซื้อตอน')),
+      );
+      return;
+    }
+    final balance = auth.user?.coinBalance ?? 0;
+    final price = widget.chapter.coinPrice;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final p = PaletteScope.of(ctx);
+        return AlertDialog(
+          backgroundColor: p.bg,
+          title: Text('ยืนยันการซื้อ', style: AlynFonts.thai(fontSize: 16, fontWeight: FontWeight.w700, color: p.ink)),
+          content: Text(
+            'ซื้อ "${widget.chapter.title}" ราคา $price เหรียญ?\nยอดคงเหลือปัจจุบัน: $balance เหรียญ',
+            style: AlynFonts.thai(fontSize: 14, color: p.inkSoft),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text('ยกเลิก', style: AlynFonts.thai(color: p.inkMuted)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text('ซื้อ', style: AlynFonts.thai(color: p.primaryDeep, fontWeight: FontWeight.w700)),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) return;
+
+    setState(() => _busy = true);
+    try {
+      final result = await NovelService(auth.api)
+          .purchaseChapter(widget.novelId, widget.chapter.id);
+      if (!mounted) return;
+      // Sync coin balance into AuthProvider's cached user.
+      final cached = auth.user;
+      if (cached != null) {
+        auth.updateCoinBalance(result.coinBalance);
+      }
+      widget.onPurchased();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ซื้อไม่สำเร็จ')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final p = PaletteScope.of(context);
+    final auth = context.watch<AuthProvider>();
+    final balance = auth.user?.coinBalance ?? 0;
+    final canAfford = balance >= widget.chapter.coinPrice;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(28, 80, 28, 40),
       child: Column(
@@ -296,12 +392,12 @@ class _LockedView extends StatelessWidget {
           Icon(Icons.lock_outline, size: 48, color: p.primaryDeep),
           const SizedBox(height: 16),
           Text(
-            'บทที่ ${chapter.number}',
+            'บทที่ ${widget.chapter.number}',
             style: AlynFonts.mono(fontSize: 10.5, color: p.inkMuted, letterSpacing: 1.6),
           ),
           const SizedBox(height: 4),
           Text(
-            chapter.title,
+            widget.chapter.title,
             textAlign: TextAlign.center,
             style: AlynFonts.thaiSerif(
               fontSize: 20,
@@ -323,7 +419,7 @@ class _LockedView extends StatelessWidget {
               borderRadius: BorderRadius.circular(100),
             ),
             child: Text(
-              '${chapter.coinPrice} coins',
+              '${widget.chapter.coinPrice} coins',
               style: AlynFonts.thai(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
@@ -332,9 +428,40 @@ class _LockedView extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          Text(
-            'รองรับการซื้อในแอปเร็วๆ นี้',
-            style: AlynFonts.mono(fontSize: 10, color: p.inkMuted, letterSpacing: 1.5),
+          if (auth.isAuthenticated)
+            Text(
+              'ยอดคงเหลือ: $balance เหรียญ',
+              style: AlynFonts.mono(fontSize: 10, color: p.inkMuted, letterSpacing: 1.5),
+            ),
+          const SizedBox(height: 16),
+          GestureDetector(
+            onTap: (_busy || !canAfford) ? null : _purchase,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+              decoration: BoxDecoration(
+                color: canAfford ? p.primary : p.inkMuted,
+                borderRadius: BorderRadius.circular(100),
+              ),
+              child: _busy
+                  ? SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: p.bg,
+                      ),
+                    )
+                  : Text(
+                      canAfford
+                          ? 'ซื้อ ${widget.chapter.coinPrice} เหรียญ'
+                          : 'เหรียญไม่พอ',
+                      style: AlynFonts.thai(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: p.bg,
+                      ),
+                    ),
+            ),
           ),
         ],
       ),

@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/models.dart';
+import '../api/services.dart';
 import '../data/adapters.dart';
 import '../data/mock_data.dart';
 import '../data/models.dart';
+import '../state/auth_provider.dart';
 import '../state/novels_provider.dart';
 import '../theme/palette.dart';
 import '../theme/typography.dart';
@@ -31,6 +33,7 @@ class DetailScreen extends StatefulWidget {
 class _DetailScreenState extends State<DetailScreen> {
   String tab = 'about';
   bool bookmarked = false;
+  bool _bookmarkBusy = false;
   bool liked = false;
 
   ApiNovel? _novel;
@@ -53,6 +56,7 @@ class _DetailScreenState extends State<DetailScreen> {
       if (!mounted) return;
       setState(() {
         _novel = n;
+        bookmarked = n.isBookmarked;
         _loading = false;
       });
     } on ApiException catch (e) {
@@ -66,6 +70,45 @@ class _DetailScreenState extends State<DetailScreen> {
       setState(() {
         _error = 'โหลดไม่สำเร็จ';
         _loading = false;
+      });
+    }
+  }
+
+  Future<void> _toggleBookmark() async {
+    if (_bookmarkBusy) return;
+    final auth = context.read<AuthProvider>();
+    if (!auth.isAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('กรุณาเข้าสู่ระบบเพื่อบันทึกนิยาย')),
+      );
+      return;
+    }
+    final previous = bookmarked;
+    setState(() {
+      bookmarked = !previous;
+      _bookmarkBusy = true;
+    });
+    try {
+      final result = await BookmarkService(auth.api).toggle(widget.book.id);
+      if (!mounted) return;
+      setState(() {
+        bookmarked = result;
+        _bookmarkBusy = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        bookmarked = previous;
+        _bookmarkBusy = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        bookmarked = previous;
+        _bookmarkBusy = false;
       });
     }
   }
@@ -360,7 +403,7 @@ class _DetailScreenState extends State<DetailScreen> {
                   ),
                 ),
                 IconButton(
-                  onPressed: () => setState(() => bookmarked = !bookmarked),
+                  onPressed: _bookmarkBusy ? null : _toggleBookmark,
                   icon: Icon(
                     bookmarked ? Icons.bookmark : Icons.bookmark_outline,
                     color: bookmarked ? p.primary : p.bg,

@@ -91,6 +91,8 @@ class ApiNovel {
   final int chapterCount;
   final int bookmarkCount;
   final int minCoinPrice;
+  final bool isBookmarked;
+  final List<String> ownedChapterIds;
 
   const ApiNovel({
     required this.id,
@@ -113,6 +115,8 @@ class ApiNovel {
     this.chapterCount = 0,
     this.bookmarkCount = 0,
     this.minCoinPrice = 0,
+    this.isBookmarked = false,
+    this.ownedChapterIds = const [],
   });
 
   factory ApiNovel.fromJson(Map<String, dynamic> j) {
@@ -150,6 +154,10 @@ class ApiNovel {
       chapterCount: count is Map ? _asInt(count['chapters']) : 0,
       bookmarkCount: count is Map ? _asInt(count['bookmarks']) : 0,
       minCoinPrice: _asInt(j['minCoinPrice']),
+      isBookmarked: j['isBookmarked'] == true,
+      ownedChapterIds: j['ownedChapterIds'] is List
+          ? (j['ownedChapterIds'] as List).whereType<String>().toList()
+          : const [],
     );
   }
 }
@@ -219,6 +227,20 @@ class ApiUser {
     this.bookmarkCount = 0,
     this.commentCount = 0,
   });
+
+  ApiUser copyWith({int? coinBalance}) => ApiUser(
+        id: id,
+        email: email,
+        name: name,
+        penName: penName,
+        avatar: avatar,
+        bio: bio,
+        role: role,
+        coinBalance: coinBalance ?? this.coinBalance,
+        novelCount: novelCount,
+        bookmarkCount: bookmarkCount,
+        commentCount: commentCount,
+      );
 
   factory ApiUser.fromJson(Map<String, dynamic> j) {
     final count = j['_count'];

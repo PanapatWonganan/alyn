@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { requireAuth } from "@/lib/auth-utils";
+import { getSession, requireAuth } from "@/lib/auth-utils";
 import { apiSuccess, apiMessage, apiError, handleApiError } from "@/lib/api-response";
 
 // GET /api/novels/[novelId] - Get novel detail
@@ -10,6 +10,7 @@ export async function GET(
 ) {
   try {
     const { novelId } = await params;
+    const session = await getSession();
 
     const novel = await db.novel.findUnique({
       where: { id: novelId },
@@ -48,7 +49,29 @@ export async function GET(
       });
     }
 
-    return apiSuccess({ novel });
+    // Per-user flags. Logged-out users get `isBookmarked: false` and an
+    // empty owned-chapter list — saves the mobile client an extra round trip.
+    let isBookmarked = false;
+    let ownedChapterIds: string[] = [];
+    if (session?.user?.id) {
+      const userId = session.user.id;
+      const [bookmark, purchases] = await Promise.all([
+        db.bookmark.findUnique({
+          where: { userId_novelId: { userId, novelId } },
+          select: { id: true },
+        }),
+        db.chapterPurchase.findMany({
+          where: { userId, chapter: { novelId } },
+          select: { chapterId: true },
+        }),
+      ]);
+      isBookmarked = !!bookmark;
+      ownedChapterIds = purchases.map((p) => p.chapterId);
+    }
+
+    return apiSuccess({
+      novel: { ...novel, isBookmarked, ownedChapterIds },
+    });
   } catch (error) {
     return handleApiError(error);
   }

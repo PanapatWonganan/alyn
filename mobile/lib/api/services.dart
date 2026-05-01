@@ -130,6 +130,41 @@ class NovelService {
       throw ApiClient.toApiException(e);
     }
   }
+
+  /// Spend coins to unlock a paid chapter. Returns the buyer's new coin
+  /// balance. Idempotent: calling twice on a chapter you already own does
+  /// not re-charge.
+  Future<PurchaseResult> purchaseChapter(
+    String novelId,
+    String chapterId,
+  ) async {
+    try {
+      final res = await client.dio
+          .post('/api/novels/$novelId/chapters/$chapterId/purchase');
+      final body = Map<String, dynamic>.from(res.data as Map);
+      return PurchaseResult(
+        purchased: body['purchased'] == true,
+        alreadyOwned: body['alreadyOwned'] == true,
+        coinSpent: (body['coinSpent'] as num?)?.toInt() ?? 0,
+        coinBalance: (body['coinBalance'] as num?)?.toInt() ?? 0,
+      );
+    } on DioException catch (e) {
+      throw ApiClient.toApiException(e);
+    }
+  }
+}
+
+class PurchaseResult {
+  final bool purchased;
+  final bool alreadyOwned;
+  final int coinSpent;
+  final int coinBalance;
+  const PurchaseResult({
+    required this.purchased,
+    required this.alreadyOwned,
+    required this.coinSpent,
+    required this.coinBalance,
+  });
 }
 
 class ChapterResponse {
@@ -174,7 +209,7 @@ class UserService {
   }
 }
 
-/// Bookmarks — GET /api/bookmarks, POST /api/bookmarks, DELETE /api/bookmarks/[id]
+/// Bookmarks — GET /api/bookmarks, POST /api/bookmarks (toggle)
 class BookmarkService {
   final ApiClient client;
   BookmarkService(this.client);
@@ -187,6 +222,21 @@ class BookmarkService {
       return list
           .map((e) => ApiBookmark.fromJson(Map<String, dynamic>.from(e)))
           .toList();
+    } on DioException catch (e) {
+      throw ApiClient.toApiException(e);
+    }
+  }
+
+  /// Toggles bookmark for a novel. Returns true if the novel is now
+  /// bookmarked (added), false if it was removed.
+  Future<bool> toggle(String novelId) async {
+    try {
+      final res = await client.dio.post(
+        '/api/bookmarks',
+        data: {'novelId': novelId},
+      );
+      final body = Map<String, dynamic>.from(res.data as Map);
+      return body['bookmarked'] == true;
     } on DioException catch (e) {
       throw ApiClient.toApiException(e);
     }

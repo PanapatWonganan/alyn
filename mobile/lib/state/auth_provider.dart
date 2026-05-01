@@ -90,4 +90,13 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  /// Update the cached user's coin balance after a transaction (purchase,
+  /// top-up, donation). Cheaper than refetching `me`.
+  void updateCoinBalance(int newBalance) {
+    final u = _user;
+    if (u == null) return;
+    _user = u.copyWith(coinBalance: newBalance);
+    notifyListeners();
+  }
 }
