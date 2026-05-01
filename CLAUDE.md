@@ -62,16 +62,17 @@ Prisma 7 with PostgreSQL (pg adapter). Connection string in `.env` as `DATABASE_
 - Database client exported as **`db`** from `src/lib/db.ts` (not `prisma`)
 - Uses PostgreSQL adapter (`@prisma/adapter-pg`) for connection pooling
 
-**Models** (see `prisma/schema.prisma` for the source of truth): User, Follow, Review, PayoutRequest, Genre, Novel, Chapter, Tag, Bookmark, ReadingProgress, Comment, ChapterPurchase, CoinTransaction, Donation, Notification, DeviceToken, Report.
+**Models** (see `prisma/schema.prisma` for the source of truth): User, Follow, Review, PayoutRequest, PaymentOrder, Genre, Novel, Chapter, Tag, Bookmark, ReadingProgress, Comment, ChapterPurchase, CoinTransaction, Donation, Notification, DeviceToken, Report, DailyCheckIn, AdReward, IapPurchase.
 
 **Enums are stored as strings** (not Prisma enums) — documented in schema comments:
 - **Role:** `READER` | `WRITER` | `ADMIN`
 - **NovelStatus:** `DRAFT` | `ONGOING` | `COMPLETED` | `HIATUS`
-- **TransactionType:** `TOPUP` | `PURCHASE` | `EARNING` | `DONATION_SENT` | `DONATION_RECEIVED` | `CHECK_IN_REWARD` | `AD_REWARD` (some reserved for future mobile rewards system)
+- **TransactionType:** `TOPUP` | `PURCHASE` | `EARNING` | `DONATION_SENT` | `DONATION_RECEIVED` | `CHECK_IN_REWARD` | `AD_REWARD` — all in active use (`CHECK_IN_REWARD` from `/api/v1/checkin/claim`, `AD_REWARD` from `/api/v1/ads/ssv-callback`).
 - **NotificationType:** `NEW_CHAPTER` | `COMMENT` | `DONATION` | `SYSTEM`
 - **ReportTargetType:** `COMMENT` | `NOVEL` | `CHAPTER`
 - **ReportStatus:** `PENDING` | `RESOLVED` | `DISMISSED`
 - **PayoutRequest status:** `PENDING` | `APPROVED` | `REJECTED` | `PAID`
+- **PaymentOrder status:** `PENDING` | `PAID` | `FAILED` | `EXPIRED` | `CANCELLED`
 
 **Revenue split:** 70% writer / 30% platform for chapter purchases; 90/10 for donations. 1 coin = 1 THB.
 
@@ -118,18 +119,37 @@ export async function POST(request: NextRequest) {
 
 ### External Services (Mock Mode)
 
-Both email and payment services have **mock fallbacks** — they work end-to-end without real API keys:
+Every external integration has a **mock fallback** so the app runs end-to-end without real API keys. The pattern is the same across all of them: log with a `[X MOCK]` prefix and return a synthetic success. Switching to live mode is always env-var driven.
 
-- **`src/lib/email.ts`** (Resend) — if `RESEND_API_KEY` is unset, `sendEmail()` logs to console with `[EMAIL MOCK]` prefix and returns a fake id. Helpers: `sendPasswordResetEmail`, `sendVerificationEmail`, `sendWelcomeEmail` — all Thai templates.
-- **`src/lib/payment/omise.ts`** — if `OMISE_SECRET_KEY` is unset, `createCharge()` returns `{ mock: true, status: "successful" }` and logs `[OMISE MOCK]`. The real SDK is loaded via a runtime-computed module name so Turbopack does not attempt to resolve the `omise` package at build time; the package does not need to be installed for mock mode to work. Install `omise` only when going live.
+- **`src/lib/email.ts`** (Resend) — `RESEND_API_KEY` unset → `[EMAIL MOCK]`. Helpers: `sendPasswordResetEmail`, `sendVerificationEmail`, `sendWelcomeEmail` (all Thai templates).
+- **`src/lib/payment/omise.ts`** — `OMISE_SECRET_KEY` unset → `[OMISE MOCK]`. The real SDK is loaded via a runtime-computed module name so Turbopack does not attempt to resolve the `omise` package at build time; the package does not need to be installed for mock mode to work. Install `omise` only when going live.
+- **`src/lib/payment/paysolutions.ts`** — Pay Solutions IPG. Mock mode when keys are unset; web checkout flow lives at `/api/payments/paysolutions/{create,return,postback,mock}` and `/(main)/wallet/{checkout,success,failed}`.
+- **`src/lib/iap/google-play.ts`** — `IAP_GOOGLE_SERVICE_ACCOUNT_JSON` unset → `[IAP MOCK]` returns `{ ok: true, mock: true }` with a synthetic order id. Live mode dynamically imports `googleapis` via runtime-computed module name (so Turbopack doesn't bundle it). Requires `npm install googleapis` to go live; package is intentionally NOT in `package.json`.
+- **`src/lib/admob/ssv.ts`** — `ADMOB_SSV_BYPASS=1` skips ECDSA signature verification (dev only). Live mode verifies against `https://www.gstatic.com/admob/reward/verifier-keys.json` with `node:crypto` only — no extra packages.
+- **`src/lib/fcm.ts`** — `FCM_SERVICE_ACCOUNT_JSON` unset → `[FCM MOCK]`. Live mode signs an RS256 JWT with the service-account private key and exchanges it for an OAuth token — no SDK needed. Tokens that come back UNREGISTERED/INVALID are pruned from `device_tokens` automatically.
 
-See `.env.example` for the full env var list.
+See `.env.example` for the full env var list. The full operator launch checklist (Google Play account, AdMob verification, App Links assetlinks.json, etc.) lives in the Memory project file `project_operator_setup.md`.
 
 ### Notifications
 
 `src/lib/notification-service.ts` exports `notifyNovelFollowers(novelId, ...)` and `notifyAuthorFollowers(authorId, ...)`. These are wired into: chapter publish (POST/PUT in `src/app/api/novels/[novelId]/chapters/...`), comment create, and donation create. New notification-triggering events should call these helpers directly — do not write raw `db.notification.create()` calls at call sites.
 
 "Followers" currently derives from `Bookmark` records for a novel (there's no separate follow-novel relation). The `Follow` model is user-to-user only.
+
+Push delivery (FCM HTTP v1) lives in `src/lib/fcm.ts`. `notification-service.sendPushToUser` calls it for every in-app notification it creates and prunes dead device tokens reported by FCM (UNREGISTERED / INVALID_ARGUMENT). When `FCM_SERVICE_ACCOUNT_JSON` is unset, sending is a logged no-op — no need to short-circuit upstream.
+
+### Mobile API (`/api/v1/*`)
+
+A separate JWT/Bearer-authenticated API surface for the Flutter app. Sits alongside the cookie-based web routes; both go through `auth-utils.ts` (`requireAuth()` accepts either). Live endpoints:
+
+- **Auth**: `POST /api/v1/auth/{token,register,refresh,logout}` — returns `{ accessToken, refreshToken, user }`. Tokens signed with `AUTH_SECRET`, access TTL 1h, refresh TTL 30d (`src/lib/jwt.ts`). `register` returns tokens immediately (mobile-friendly: email verification is non-blocking, gated per-feature). `logout` is stateless today — exists so a future denylist plugs in without changing the API.
+- **User/notifications**: `GET /api/users/me` (already cookie-aware via Bearer fallback), `POST /api/v1/notifications/{register,unregister}-device`.
+- **Daily check-in**: `GET /api/v1/checkin/status`, `POST /api/v1/checkin/claim`. Asia/Bangkok day boundary helpers in `src/lib/checkin.ts`. Reward table is `[2,2,3,3,5,5,10]` — locked, not configurable yet.
+- **IAP (Google Play Billing)**: `GET /api/v1/iap/products` (public catalog, see `src/lib/iap/products.ts`), `POST /api/v1/iap/{verify,restore,rtdn-webhook}`. The `IapPurchase.purchaseToken` `@unique` constraint blocks replays; P2002 returns 409 `ALREADY_CONSUMED`. RTDN webhook is currently a logging stub.
+- **AdMob rewarded ads**: `GET /api/v1/ads/rewards/{status,recent}`, `POST /api/v1/ads/rewards/request-token`, `GET /api/v1/ads/ssv-callback` (unauthenticated; ECDSA signature verifies the request). 5 coins/grant, 5/day cap, 5-min cooldown — denials still record an `AdReward` row with `verified=false` to keep `adNetworkTxId @unique` idempotent.
+- **Notification delivery (mobile)**: same `notification-service.ts` flow as web; the `device_tokens` table holds FCM tokens registered by the Flutter app.
+
+The mobile auth utilities also reject banned users (`auth-utils.getSessionFromBearerToken` checks `isBanned`).
 
 ### Design System
 
@@ -158,7 +178,7 @@ Reader themes (default/sepia/night/dark) are toggled via inline styles and Tailw
 
 ### Path Alias
 
-`@/*` maps to `./src/*` (tsconfig.json). The `mobile/` directory is excluded from both TypeScript (`tsconfig.json` exclude) and ESLint (`eslint.config.mjs` globalIgnores) — Flutter app lives there per `docs/mobile-plan.md` but is not yet implemented.
+`@/*` maps to `./src/*` (tsconfig.json). The `mobile/` directory is excluded from both TypeScript (`tsconfig.json` exclude) and ESLint (`eslint.config.mjs` globalIgnores) — that's where the Flutter app lives. See the Mobile App section below.
 
 ### SEO
 
@@ -176,7 +196,18 @@ Cover images uploaded via `POST /api/upload` to `public/uploads/covers/`. Accept
 
 ## Mobile App
 
-A Flutter mobile app is planned but not yet built. See `docs/mobile-plan.md` for the full architecture plan (Riverpod + GoRouter + Dio, Android-first, Google Play Billing, AdMob rewarded ads + daily check-in). The prior React Native attempt was deleted — the `mobile/` directory is reserved for the new Flutter project and is currently excluded from TS/ESLint.
+Flutter app lives in `mobile/`. See `mobile/CLAUDE.md` for the mobile-specific guide (provider/navigation pattern, API contract table, platform-specific quirks). `mobile/` is excluded from this project's TypeScript and ESLint configs.
+
+**Current state**: Phase 1-7 of `docs/mobile-plan.md` shipped — auth, browse, reader, library, age gate, daily check-in, IAP top-up (Google Play Billing), rewarded ads + SSV, deep linking (alyn:// + Android App Links), file-based offline chapter cache. Phase 8 (production polish) is the remaining work.
+
+**Stack deviations from the plan** (intentional, see `mobile/CLAUDE.md`): Provider + ChangeNotifier instead of Riverpod, custom `enum _Screen` switch in `_AppShell` instead of GoRouter, file-based JSON chapter cache instead of Drift+sqlcipher. The router migration becomes due if the app grows past ~8 screens — currently sitting right at that threshold.
+
+**Known TODOs before launch** (same items live in `project_inflight_todos.md` Memory):
+- Wire `firebase_messaging` SDK in the app (`mobile/lib/services/push_service.dart` already calls the backend — only Firebase init is missing).
+- Replace AdMob test ad-unit IDs in `mobile/lib/services/rewarded_ad_service.dart`.
+- Flip `android:autoVerify` to `true` in `mobile/android/app/src/main/AndroidManifest.xml` once the production keystore signs and `assetlinks.json` is published at `https://alyn.co/.well-known/`.
+- Migrate `chapter_cache.dart` to Drift+sqlcipher for paid chapters.
+- RTDN webhook (`/api/v1/iap/rtdn-webhook`) needs refund + subscription handlers.
 
 ## Brand Assets
 
