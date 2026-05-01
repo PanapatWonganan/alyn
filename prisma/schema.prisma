@@ -9,7 +9,7 @@ datasource db {
 
 // Role: READER | WRITER | ADMIN
 // NovelStatus: DRAFT | ONGOING | COMPLETED | HIATUS
-// TransactionType: TOPUP | PURCHASE | EARNING | DONATION_SENT | DONATION_RECEIVED
+// TransactionType: TOPUP | PURCHASE | EARNING | DONATION_SENT | DONATION_RECEIVED | CHECK_IN_REWARD | AD_REWARD
 
 model User {
   id            String   @id @default(cuid())
@@ -27,6 +27,14 @@ model User {
   emailVerified              DateTime?
   emailVerifyToken           String?   @unique
   emailVerifyTokenExpiresAt  DateTime?
+  // Daily check-in streak (Asia/Bangkok day boundary)
+  currentStreak    Int       @default(0)
+  longestStreak    Int       @default(0)
+  lastCheckInDate  DateTime?
+  // Rewarded-ad daily counters (rolling per Asia/Bangkok day)
+  adRewardsToday   Int       @default(0)
+  adRewardsDate    DateTime?
+  lastAdRewardAt   DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -46,8 +54,64 @@ model User {
   reviews           Review[]
   following         Follow[]           @relation("UserFollowing")
   followers         Follow[]           @relation("UserFollowers")
+  checkIns          DailyCheckIn[]
+  adRewards         AdReward[]
+  iapPurchases      IapPurchase[]
 
   @@map("users")
+}
+
+model DailyCheckIn {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  checkedInAt DateTime @default(now())
+  // 1..7 — position within the current weekly cycle when claimed.
+  streakDay   Int
+  coinsEarned Int
+
+  @@index([userId, checkedInAt])
+  @@map("daily_check_ins")
+}
+
+model AdReward {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adUnitId      String
+  // "daily_bonus" | "extra_coins"
+  rewardType    String
+  coinsEarned   Int
+  // SSV transaction id from Google AdMob — unique to block replays.
+  adNetworkTxId String?  @unique
+  verified      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("ad_rewards")
+}
+
+model IapPurchase {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Google Play product id, e.g. "alyn.coins.pack1"
+  productId         String
+  // Google Play Billing purchaseToken — unique per purchase. Replay shield.
+  purchaseToken     String   @unique
+  orderId           String?
+  // "google_play" (future: "app_store")
+  platform          String   @default("google_play")
+  coinsGranted      Int
+  // Raw price as reported by Google (micros). Stored as string to keep precision.
+  priceAmountMicros String?
+  currency          String?
+  verified          Boolean  @default(false)
+  acknowledged      Boolean  @default(false)
+  createdAt         DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("iap_purchases")
 }
 
 model Follow {
