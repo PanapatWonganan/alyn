@@ -47,3 +47,7 @@ dev.db
 
 # uploads
 /public/uploads/
+
+# design handoff (local reference only, not tracked)
+/Test-handoff/
+/Test-handoff.zip
