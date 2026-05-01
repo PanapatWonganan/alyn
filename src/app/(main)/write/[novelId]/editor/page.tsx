@@ -4,7 +4,6 @@ import Button from "@/components/ui/Button";
 import RichTextEditor from "@/components/editor/RichTextEditor";
 import {
   Save,
-  Eye,
   ChevronLeft,
   Coins,
   Lock,
@@ -45,7 +44,7 @@ export default function EditorPage({
   params: Promise<{ novelId: string }>;
 }) {
   const { novelId } = use(params);
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   const chapterIdFromQuery = searchParams.get("chapter");

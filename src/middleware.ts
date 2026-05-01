@@ -20,7 +20,7 @@ export async function middleware(request: NextRequest) {
   // Try to get NextAuth token first (cookie-based, for web)
   const token = await getToken({
     req: request,
-    secret: process.env.NEXTAUTH_SECRET,
+    secret: process.env.AUTH_SECRET,
   });
 
   // If we have a valid NextAuth token, proceed with existing logic

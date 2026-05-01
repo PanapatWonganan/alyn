@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/auth-utils";
 import { apiSuccess, apiError, handleApiError } from "@/lib/api-response";
+import { notifyNovelFollowers, notifyAuthorFollowers } from "@/lib/notification-service";
 
 // GET /api/novels/[novelId]/chapters - List chapters
 export async function GET(
@@ -101,6 +102,32 @@ export async function POST(
         where: { id: novelId },
         data: { status: "ONGOING" },
       });
+    }
+
+    // Notify followers (bookmarkers + author followers) when chapter is published
+    if (publish) {
+      try {
+        await Promise.allSettled([
+          notifyNovelFollowers({
+            novelId,
+            type: "NEW_CHAPTER",
+            title: "ตอนใหม่มาแล้ว",
+            message: `${novel.title} - ตอนที่ ${chapter.number}: ${chapter.title}`,
+            link: `/novel/${novelId}/chapter/${chapter.id}`,
+            excludeUserId: session.user.id,
+          }),
+          notifyAuthorFollowers({
+            authorId: novel.authorId,
+            type: "NEW_CHAPTER",
+            title: "ผู้เขียนที่คุณติดตามอัปเดตตอนใหม่",
+            message: `${novel.title} - ตอนที่ ${chapter.number}: ${chapter.title}`,
+            link: `/novel/${novelId}/chapter/${chapter.id}`,
+            excludeUserId: session.user.id,
+          }),
+        ]);
+      } catch (err) {
+        console.error("Failed to notify followers:", err);
+      }
     }
 
     return apiSuccess({ chapter }, 201);

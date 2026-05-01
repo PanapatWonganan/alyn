@@ -31,11 +31,13 @@ interface Transaction {
 }
 
 interface ApiResponse {
-  transactions: Transaction[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
+  data: Transaction[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
   summary: {
     totalTopups: number;
     totalPurchases: number;
@@ -109,9 +111,9 @@ export default function AdminTransactionsPage() {
       if (!response.ok) throw new Error("Failed to fetch transactions");
 
       const data: ApiResponse = await response.json();
-      setTransactions(data.transactions);
-      setTotalPages(data.totalPages);
-      setTotal(data.total);
+      setTransactions(data.data);
+      setTotalPages(data.pagination.totalPages);
+      setTotal(data.pagination.total);
       setSummary(data.summary);
     } catch (error) {
       console.error("Error fetching transactions:", error);

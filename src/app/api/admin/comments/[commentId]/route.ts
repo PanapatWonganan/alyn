@@ -4,15 +4,17 @@ import { NextRequest } from "next/server";
 import { apiMessage, handleApiError } from "@/lib/api-response";
 
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ commentId: string }> }
 ) {
   try {
     await requireAdmin();
     const { commentId } = await params;
 
-    await db.comment.delete({
+    // Soft delete: replace content with admin marker
+    await db.comment.update({
       where: { id: commentId },
+      data: { content: "[ลบโดยผู้ดูแล]" },
     });
 
     return apiMessage("ลบความคิดเห็นสำเร็จ", { success: true });

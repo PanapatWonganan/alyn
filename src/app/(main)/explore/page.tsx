@@ -15,8 +15,6 @@ import NovelCard from "@/components/ui/NovelCard";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 interface Genre {
   id: string;
   name: string;
@@ -84,7 +82,7 @@ function ExploreContent() {
           `/api/search?q=${encodeURIComponent(searchQuery.trim())}&limit=10`
         );
         const data = await res.json();
-        setSearchResults(data.novels || []);
+        setSearchResults(data.data || []);
       } catch (error) {
         console.error("Search error:", error);
         setSearchResults([]);
@@ -116,7 +114,7 @@ function ExploreContent() {
 
       const res = await fetch(`/api/novels?${params.toString()}`);
       const data = await res.json();
-      setNovels(data.novels || []);
+      setNovels(data.data || []);
       setTotalPages(data.pagination?.totalPages || 1);
       setTotal(data.pagination?.total || 0);
     } catch (error) {
@@ -152,7 +150,7 @@ function ExploreContent() {
     }
   };
 
-  const handleSearchClick = (novel: Novel) => {
+  const handleSearchClick = (_novel: Novel) => {
     setSearchQuery("");
     setSearchResults([]);
   };

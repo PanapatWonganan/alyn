@@ -13,13 +13,11 @@ export async function GET() {
       totalNovels,
       totalChapters,
       totalComments,
-      totalDonations,
     ] = await Promise.all([
       db.user.count(),
       db.novel.count(),
       db.chapter.count(),
       db.comment.count(),
-      db.donation.count(),
     ]);
 
     // Get total coins in system (sum of all TOPUP transactions)

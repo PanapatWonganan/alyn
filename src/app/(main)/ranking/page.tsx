@@ -24,7 +24,7 @@ function RankingContent() {
   }, []);
 
   useEffect(() => {
-    setLoading(true);
+    let cancelled = false;
     const genreParam =
       selectedGenre !== "all"
         ? genres.find((g: any) => g.slug === selectedGenre)?.id
@@ -34,11 +34,21 @@ function RankingContent() {
       ? `/api/novels?sort=popular&limit=20&genre=${genreParam}`
       : "/api/novels?sort=popular&limit=20";
 
-    fetch(url)
-      .then((res) => res.json())
-      .then((data) => setNovels(data.novels || []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    const fetchNovels = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!cancelled) {
+          setNovels(data.data || []);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    fetchNovels();
+    return () => { cancelled = true; };
   }, [selectedGenre, genres]);
 
   const rankedNovels = [...novels].sort(

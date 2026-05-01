@@ -12,6 +12,9 @@ import {
   Loader2,
   Crown,
   PenTool,
+  UserPlus,
+  UserCheck,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 import DonationButton from "@/components/donations/DonationButton";
@@ -67,6 +70,9 @@ export default function UserProfilePage({
   const [data, setData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [following, setFollowing] = useState(false);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [followLoading, setFollowLoading] = useState(false);
 
   useEffect(() => {
     async function fetchUserData() {
@@ -91,6 +97,43 @@ export default function UserProfilePage({
     }
     fetchUserData();
   }, [userId]);
+
+  useEffect(() => {
+    async function fetchFollowStatus() {
+      try {
+        const res = await fetch(`/api/users/${userId}/follow`);
+        if (res.ok) {
+          const json = await res.json();
+          setFollowing(Boolean(json.following));
+          setFollowerCount(Number(json.followerCount || 0));
+        }
+      } catch (err) {
+        console.error("Follow status error:", err);
+      }
+    }
+    fetchFollowStatus();
+  }, [userId, session?.user?.id]);
+
+  const handleToggleFollow = async () => {
+    if (!session?.user) {
+      window.location.href = "/auth/login";
+      return;
+    }
+    setFollowLoading(true);
+    try {
+      const method = following ? "DELETE" : "POST";
+      const res = await fetch(`/api/users/${userId}/follow`, { method });
+      if (res.ok) {
+        const json = await res.json();
+        setFollowing(Boolean(json.following));
+        setFollowerCount(Number(json.followerCount || 0));
+      }
+    } catch (err) {
+      console.error("Follow toggle error:", err);
+    } finally {
+      setFollowLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -184,10 +227,44 @@ export default function UserProfilePage({
                 <p className="mb-4 text-sm text-brand-black/80">{user.bio}</p>
               )}
 
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Calendar className="h-4 w-4" />
-                <span>เป็นสมาชิกตั้งแต่ {memberSince}</span>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  <span>เป็นสมาชิกตั้งแต่ {memberSince}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  <span>
+                    <span className="font-semibold text-brand-black">
+                      {followerCount.toLocaleString("th-TH")}
+                    </span>{" "}
+                    ผู้ติดตาม
+                  </span>
+                </div>
               </div>
+
+              {session?.user?.id && session.user.id !== userId && (
+                <div className="mt-4">
+                  <Button
+                    variant={following ? "outline" : "primary"}
+                    onClick={handleToggleFollow}
+                    disabled={followLoading}
+                    className={following ? "border-rosegold text-rosegold-dark" : ""}
+                  >
+                    {following ? (
+                      <>
+                        <UserCheck className="h-4 w-4" />
+                        กำลังติดตาม
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="h-4 w-4" />
+                        ติดตาม
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>

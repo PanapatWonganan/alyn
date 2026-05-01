@@ -51,3 +51,6 @@ dev.db
 # design handoff (local reference only, not tracked)
 /Test-handoff/
 /Test-handoff.zip
+
+# AI-generated cover references (local only, large binaries)
+/Alyn/cover/

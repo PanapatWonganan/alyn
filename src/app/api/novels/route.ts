@@ -13,10 +13,13 @@ export async function GET(request: NextRequest) {
     const sort = searchParams.get("sort") || "latest";
     const authorId = searchParams.get("authorId");
 
+    const featured = searchParams.get("featured");
+
     const where: Record<string, unknown> = {};
     if (genre) where.genreId = genre;
     if (status) where.status = status;
     if (authorId) where.authorId = authorId;
+    if (featured === "true") where.isFeatured = true;
 
     // Only show published novels (not DRAFT) for public listing
     if (!authorId) {
@@ -44,13 +47,30 @@ export async function GET(request: NextRequest) {
           },
           genre: { select: { id: true, name: true, slug: true } },
           tags: { select: { id: true, name: true } },
+          chapters: {
+            select: { coinPrice: true, isFree: true },
+            where: { publishedAt: { not: null } },
+          },
           _count: { select: { chapters: true, bookmarks: true } },
         },
       }),
       db.novel.count({ where }),
     ]);
 
-    return apiPaginated(novels, calculatePagination(total, page, limit));
+    const novelsWithPrice = novels.map((n) => {
+      const paidChapters = n.chapters.filter(
+        (c) => !c.isFree && c.coinPrice > 0
+      );
+      const minCoinPrice =
+        paidChapters.length > 0
+          ? Math.min(...paidChapters.map((c) => c.coinPrice))
+          : 0;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { chapters: _chapters, ...rest } = n;
+      return { ...rest, minCoinPrice };
+    });
+
+    return apiPaginated(novelsWithPrice, calculatePagination(total, page, limit));
   } catch (error) {
     return handleApiError(error);
   }

@@ -20,6 +20,7 @@ import Link from "next/link";
 import { useState, use, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import CommentSection from "@/components/comments/CommentSection";
+import AgeGateModal from "@/components/safety/AgeGateModal";
 import DOMPurify from "dompurify";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -136,11 +137,13 @@ export default function ReaderPage({
   }
 
   const novelTitle = chapter.novel?.title || "";
+  const novelIsAdult = Boolean(chapter.novel?.isAdult);
 
   // Locked chapter — need to purchase
   if (chapter.locked) {
     return (
       <div className={`min-h-screen ${themeStyles[theme].bg}`}>
+        <AgeGateModal isAdult={novelIsAdult} />
         <header className="sticky top-0 z-50 border-b border-border bg-white/95 backdrop-blur-sm">
           <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
             <Link
@@ -193,6 +196,7 @@ export default function ReaderPage({
 
   return (
     <div className={`min-h-screen ${themeStyles[theme].bg} transition-colors duration-300`}>
+      <AgeGateModal isAdult={novelIsAdult} />
       {/* Reader Header */}
       <header
         className={`sticky top-0 z-50 border-b ${

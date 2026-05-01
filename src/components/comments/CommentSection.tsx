@@ -6,6 +6,7 @@ import { MessageSquare, Send, Trash2, User, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { formatRelativeTime } from "@/lib/utils";
 import Button from "@/components/ui/Button";
+import ReportButton from "@/components/safety/ReportButton";
 
 interface Comment {
   id: string;
@@ -155,11 +156,6 @@ export default function CommentSection({ chapterId, theme = "default" }: Comment
     return user.penName || user.name || "ผู้ใช้งาน";
   }
 
-  function getUserInitial(user: Comment["user"]) {
-    const name = getUserDisplayName(user);
-    return name.charAt(0).toUpperCase();
-  }
-
   if (loading) {
     return (
       <div className={`py-8 border-t ${styles.border}`}>
@@ -275,21 +271,29 @@ export default function CommentSection({ chapterId, theme = "default" }: Comment
                     </div>
                   </div>
 
-                  {/* Delete Button */}
-                  {session?.user?.id === comment.user.id && (
-                    <button
-                      onClick={() => handleDelete(comment.id)}
-                      disabled={deletingId === comment.id}
-                      className={`flex-shrink-0 p-2 rounded-lg ${styles.mutedText} hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-50`}
-                      title="ลบความคิดเห็น"
-                    >
-                      {deletingId === comment.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                    </button>
-                  )}
+                  {/* Actions */}
+                  <div className="flex-shrink-0 flex items-center gap-1">
+                    {session?.user && session.user.id !== comment.user.id && (
+                      <ReportButton
+                        targetType="COMMENT"
+                        targetId={comment.id}
+                      />
+                    )}
+                    {session?.user?.id === comment.user.id && (
+                      <button
+                        onClick={() => handleDelete(comment.id)}
+                        disabled={deletingId === comment.id}
+                        className={`p-2 rounded-lg ${styles.mutedText} hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-50`}
+                        title="ลบความคิดเห็น"
+                      >
+                        {deletingId === comment.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))

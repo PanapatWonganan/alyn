@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getSession, requireAuth } from "@/lib/auth-utils";
 import { apiSuccess, apiMessage, apiError, handleApiError } from "@/lib/api-response";
+import { notifyNovelFollowers, notifyAuthorFollowers } from "@/lib/notification-service";
 
 // GET /api/novels/[novelId]/chapters/[chapterId] - Get chapter content
 export async function GET(
@@ -16,7 +17,7 @@ export async function GET(
       where: { id: chapterId },
       include: {
         novel: {
-          select: { id: true, title: true, slug: true, authorId: true },
+          select: { id: true, title: true, slug: true, authorId: true, isAdult: true },
         },
         author: {
           select: { id: true, name: true, penName: true },
@@ -99,7 +100,7 @@ export async function PUT(
 
     const chapter = await db.chapter.findUnique({
       where: { id: chapterId },
-      include: { novel: { select: { authorId: true } } },
+      include: { novel: { select: { authorId: true, title: true } } },
     });
 
     if (!chapter || chapter.novelId !== novelId) {
@@ -118,6 +119,7 @@ export async function PUT(
       ? content.replace(/\s+/g, " ").trim().length
       : undefined;
 
+    const wasPublished = !!chapter.publishedAt;
     const updated = await db.chapter.update({
       where: { id: chapterId },
       data: {
@@ -128,6 +130,32 @@ export async function PUT(
         ...(publish && !chapter.publishedAt && { publishedAt: new Date() }),
       },
     });
+
+    // Notify followers on transition to published
+    if (publish && !wasPublished) {
+      try {
+        await Promise.allSettled([
+          notifyNovelFollowers({
+            novelId,
+            type: "NEW_CHAPTER",
+            title: "ตอนใหม่มาแล้ว",
+            message: `${chapter.novel.title} - ตอนที่ ${updated.number}: ${updated.title}`,
+            link: `/novel/${novelId}/chapter/${updated.id}`,
+            excludeUserId: session.user.id,
+          }),
+          notifyAuthorFollowers({
+            authorId: chapter.novel.authorId,
+            type: "NEW_CHAPTER",
+            title: "ผู้เขียนที่คุณติดตามอัปเดตตอนใหม่",
+            message: `${chapter.novel.title} - ตอนที่ ${updated.number}: ${updated.title}`,
+            link: `/novel/${novelId}/chapter/${updated.id}`,
+            excludeUserId: session.user.id,
+          }),
+        ]);
+      } catch (err) {
+        console.error("Failed to notify followers:", err);
+      }
+    }
 
     return apiSuccess({ chapter: updated });
   } catch (error) {

@@ -142,8 +142,8 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: NextRequest,
-  { params }: RouteContext
+  _request: NextRequest,
+  _context: RouteContext
 ) {
   try {
     const result = await requireAdmin();

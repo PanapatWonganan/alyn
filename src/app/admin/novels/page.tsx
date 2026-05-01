@@ -10,6 +10,7 @@ import {
   Edit,
   Trash2,
   Loader2,
+  Star,
 } from "lucide-react";
 
 interface Novel {
@@ -19,6 +20,7 @@ interface Novel {
   coverImage: string | null;
   status: "DRAFT" | "ONGOING" | "COMPLETED" | "HIATUS";
   isAdult: boolean;
+  isFeatured: boolean;
   viewCount: number;
   createdAt: string;
   author: {
@@ -38,11 +40,13 @@ interface Novel {
 }
 
 interface ApiResponse {
-  novels: Novel[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
+  data: Novel[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
 }
 
 const statusConfig = {
@@ -88,14 +92,27 @@ export default function AdminNovelsPage() {
       if (!response.ok) throw new Error("Failed to fetch novels");
 
       const data: ApiResponse = await response.json();
-      setNovels(data.novels);
-      setTotalPages(data.totalPages);
-      setTotal(data.total);
+      setNovels(data.data);
+      setTotalPages(data.pagination.totalPages);
+      setTotal(data.pagination.total);
     } catch (error) {
       console.error("Error fetching novels:", error);
       alert("เกิดข้อผิดพลาดในการโหลดข้อมูลนิยาย");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToggleFeature = async (novelId: string) => {
+    try {
+      const response = await fetch(`/api/admin/novels/${novelId}/feature`, {
+        method: "POST",
+      });
+      if (!response.ok) throw new Error("Failed to toggle feature");
+      fetchNovels();
+    } catch (error) {
+      console.error("Error toggling featured:", error);
+      alert("เกิดข้อผิดพลาดในการอัปเดตสถานะแนะนำ");
     }
   };
 
@@ -298,6 +315,24 @@ export default function AdminNovelsPage() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => handleToggleFeature(novel.id)}
+                              className={`p-2 rounded-lg transition-colors ${
+                                novel.isFeatured
+                                  ? "text-coin bg-coin/10 hover:bg-coin/20"
+                                  : "text-gray-400 hover:bg-gray-100"
+                              }`}
+                              title={
+                                novel.isFeatured
+                                  ? "ยกเลิกนิยายแนะนำ"
+                                  : "ตั้งเป็นนิยายแนะนำ"
+                              }
+                            >
+                              <Star
+                                className="w-4 h-4"
+                                fill={novel.isFeatured ? "currentColor" : "none"}
+                              />
+                            </button>
                             <Link
                               href={`/admin/novels/${novel.id}`}
                               className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"

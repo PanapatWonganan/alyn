@@ -8,17 +8,20 @@ import {
   Clock,
   Bookmark,
   Share2,
-  Heart,
   Coins,
   Lock,
   ChevronRight,
   User,
   Loader2,
+  Star,
 } from "lucide-react";
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import DonationButton from "@/components/donations/DonationButton";
+import AgeGateModal from "@/components/safety/AgeGateModal";
+import ReviewSection from "@/components/reviews/ReviewSection";
+import ReportButton from "@/components/safety/ReportButton";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -121,6 +124,7 @@ export default function NovelDetailPage({
 
   return (
     <div className="min-h-screen bg-white">
+      <AgeGateModal isAdult={Boolean(novel.isAdult)} />
       {/* Novel Header */}
       <section className="bg-gradient-to-b from-cream to-white">
         <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
@@ -194,6 +198,15 @@ export default function NovelDetailPage({
               {/* Stats */}
               <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">
+                  <Star className="h-4 w-4 fill-coin text-coin" />
+                  <span className="font-semibold text-brand-black">
+                    {(novel.averageRating || 0).toFixed(1)}
+                  </span>
+                  <span className="text-xs">
+                    ({(novel.reviewCount || 0).toLocaleString("th-TH")})
+                  </span>
+                </span>
+                <span className="flex items-center gap-1">
                   <Eye className="h-4 w-4" />
                   {novel.viewCount.toLocaleString("th-TH")} วิว
                 </span>
@@ -234,6 +247,12 @@ export default function NovelDetailPage({
                 <Button variant="ghost" size="lg">
                   <Share2 className="h-5 w-5" />
                 </Button>
+                <ReportButton
+                  targetType="NOVEL"
+                  targetId={novel.id}
+                  variant="button"
+                  label="รายงาน"
+                />
               </div>
             </div>
           </div>
@@ -301,6 +320,40 @@ export default function NovelDetailPage({
           )}
         </div>
       </section>
+
+      {/* Reviews */}
+      <ReviewSection novelId={id} authorId={novel.author?.id} />
+
+      {/* Structured data: Book schema */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Book",
+            name: novel.title,
+            description: novel.synopsis,
+            image: novel.coverImage || undefined,
+            genre: genreName,
+            author: {
+              "@type": "Person",
+              name: authorName,
+            },
+            aggregateRating:
+              (novel.reviewCount || 0) > 0
+                ? {
+                    "@type": "AggregateRating",
+                    ratingValue: Number(
+                      (novel.averageRating || 0).toFixed(1)
+                    ),
+                    reviewCount: novel.reviewCount,
+                    bestRating: 5,
+                    worstRating: 1,
+                  }
+                : undefined,
+          }),
+        }}
+      />
     </div>
   );
 }

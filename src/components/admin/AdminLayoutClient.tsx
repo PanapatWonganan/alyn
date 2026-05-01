@@ -9,9 +9,11 @@ import {
   BookOpen,
   MessageSquare,
   Coins,
+  Banknote,
   Settings,
   Menu,
   X,
+  Flag,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -20,7 +22,9 @@ const navigation = [
   { name: "จัดการผู้ใช้", href: "/admin/users", icon: Users },
   { name: "จัดการนิยาย", href: "/admin/novels", icon: BookOpen },
   { name: "คอมเมนต์", href: "/admin/comments", icon: MessageSquare },
+  { name: "รายงานเนื้อหา", href: "/admin/reports", icon: Flag },
   { name: "ธุรกรรม", href: "/admin/transactions", icon: Coins },
+  { name: "การจ่ายเงิน", href: "/admin/payouts", icon: Banknote },
   { name: "ตั้งค่า", href: "/admin/settings", icon: Settings },
 ];
 

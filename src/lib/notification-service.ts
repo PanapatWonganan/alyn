@@ -102,3 +102,36 @@ export async function notifyNovelFollowers(params: {
     )
   );
 }
+
+/**
+ * Send notification to all followers of an author (e.g., new chapter by followed writer)
+ */
+export async function notifyAuthorFollowers(params: {
+  authorId: string;
+  type: string;
+  title: string;
+  message: string;
+  link?: string;
+  excludeUserId?: string;
+}): Promise<void> {
+  const follows = await db.follow.findMany({
+    where: { followingId: params.authorId },
+    select: { followerId: true },
+  });
+
+  const userIds = follows
+    .map((f) => f.followerId)
+    .filter((id) => id !== params.excludeUserId);
+
+  await Promise.allSettled(
+    userIds.map((userId) =>
+      createAndPushNotification({
+        userId,
+        type: params.type,
+        title: params.title,
+        message: params.message,
+        link: params.link,
+      })
+    )
+  );
+}

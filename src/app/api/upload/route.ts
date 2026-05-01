@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth-utils";
-import { writeFile } from "fs/promises";
+import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import { apiSuccess, apiError, handleApiError } from "@/lib/api-response";
+import { rateLimitRequest } from "@/lib/rate-limit";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
@@ -11,6 +12,11 @@ const MAX_SIZE = 5 * 1024 * 1024; // 5MB
 // POST /api/upload - Upload an image
 export async function POST(request: NextRequest) {
   try {
+    const limit = rateLimitRequest(request, "upload:post", 10, 60 * 60 * 1000);
+    if (!limit.success) {
+      return apiError("คำขอมากเกินไป กรุณาลองอีกครั้งในภายหลัง", 429, "RATE_LIMITED");
+    }
+
     await requireAuth();
 
     const formData = await request.formData();
@@ -42,8 +48,10 @@ export async function POST(request: NextRequest) {
       return apiError("รองรับเฉพาะไฟล์ JPG, PNG, WebP", 400);
     }
     const filename = `${crypto.randomUUID()}.${ext}`;
-    const uploadPath = path.join(process.cwd(), "public", "uploads", "covers", filename);
+    const uploadDir = path.join(process.cwd(), "public", "uploads", "covers");
+    const uploadPath = path.join(uploadDir, filename);
 
+    await mkdir(uploadDir, { recursive: true });
     await writeFile(uploadPath, buffer);
 
     const url = `/uploads/covers/${filename}`;

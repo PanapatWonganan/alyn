@@ -33,6 +33,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         }
 
+        if ((user as unknown as { isBanned?: boolean }).isBanned) {
+          throw new Error("บัญชีนี้ถูกระงับการใช้งาน");
+        }
+
         return {
           id: user.id,
           email: user.email,

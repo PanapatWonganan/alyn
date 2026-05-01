@@ -19,6 +19,8 @@ import {
   Shield,
   Settings,
   Compass,
+  Sun,
+  Moon,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -26,6 +28,7 @@ import { useState, useRef, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { formatRelativeTime } from "@/lib/utils";
+import { useTheme } from "@/lib/theme";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -51,12 +54,14 @@ export default function Navbar() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [liveCoinBalance, setLiveCoinBalance] = useState<number | null>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const notificationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const _notificationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { data: session } = useSession();
+  const { resolvedTheme, toggleTheme, mounted: themeMounted } = useTheme();
 
   // Close profile dropdown on outside click
   useEffect(() => {
@@ -149,6 +154,48 @@ export default function Navbar() {
     fetchNotifs();
     const interval = setInterval(fetchNotifs, 30000);
     return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id]);
+
+  // Fetch live coin balance from DB. The JWT session only has the balance
+  // that was snapshot at login — after top-ups, chapter purchases, or
+  // donations we need the fresh value. Refresh on mount, on tab visibility
+  // change, and on window focus so the navbar number is never stale.
+  useEffect(() => {
+    if (!session?.user) {
+      setLiveCoinBalance(null);
+      return;
+    }
+
+    let cancelled = false;
+    async function fetchBalance() {
+      try {
+        const res = await fetch("/api/users/me", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        const balance = data.user?.coinBalance;
+        if (typeof balance === "number") {
+          setLiveCoinBalance(balance);
+        }
+      } catch (error) {
+        console.error("Failed to fetch coin balance:", error);
+      }
+    }
+
+    fetchBalance();
+
+    function onVisibility() {
+      if (document.visibilityState === "visible") fetchBalance();
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", fetchBalance);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", fetchBalance);
+    };
   }, [session?.user?.id]);
 
   // Mark notification as read
@@ -232,10 +279,12 @@ export default function Navbar() {
   ];
 
   const userRole = (session?.user as unknown as Record<string, unknown>)?.role as string | undefined;
-  const userCoinBalance = (session?.user as unknown as Record<string, unknown>)?.coinBalance as number | undefined;
+  const sessionCoinBalance = (session?.user as unknown as Record<string, unknown>)?.coinBalance as number | undefined;
+  // Prefer the freshly fetched balance over the JWT snapshot.
+  const userCoinBalance = liveCoinBalance ?? sessionCoinBalance;
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-white/95 backdrop-blur-sm">
+    <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-sm">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
@@ -266,6 +315,19 @@ export default function Navbar() {
 
         {/* Right side */}
         <div className="flex items-center gap-2">
+          {/* Theme toggle */}
+          <button
+            onClick={toggleTheme}
+            aria-label={resolvedTheme === "dark" ? "เปลี่ยนเป็นโหมดสว่าง" : "เปลี่ยนเป็นโหมดมืด"}
+            className="rounded-full p-2.5 text-brand-black/60 transition-colors hover:bg-cream hover:text-rosegold-dark"
+          >
+            {themeMounted && resolvedTheme === "dark" ? (
+              <Sun className="h-5 w-5" />
+            ) : (
+              <Moon className="h-5 w-5" />
+            )}
+          </button>
+
           {/* Search */}
           <button
             onClick={() => setSearchOpen(!searchOpen)}
@@ -291,7 +353,7 @@ export default function Navbar() {
                 </button>
 
                 {notificationOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-80 rounded-xl border border-border bg-white shadow-lg">
+                  <div className="absolute right-0 top-full mt-2 w-80 rounded-xl border border-border bg-background shadow-lg">
                     <div className="flex items-center justify-between border-b border-border px-4 py-3">
                       <h3 className="text-sm font-semibold text-brand-black">
                         การแจ้งเตือน
@@ -362,7 +424,7 @@ export default function Navbar() {
                 className="hidden sm:flex items-center gap-1.5 rounded-full bg-coin-light px-3 py-1.5 text-sm font-semibold text-coin transition-colors hover:bg-coin/10"
               >
                 <Coins className="h-4 w-4" />
-                <span>{userCoinBalance ?? 0}</span>
+                <span>{(userCoinBalance ?? 0).toLocaleString("th-TH")}</span>
               </Link>
 
               {/* Profile dropdown */}
@@ -381,7 +443,7 @@ export default function Navbar() {
                 </button>
 
                 {profileOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-border bg-white py-2 shadow-lg">
+                  <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-border bg-background py-2 shadow-lg">
                     <div className="border-b border-border px-4 py-2">
                       <p className="text-sm font-medium text-brand-black">
                         {session.user.name}
@@ -482,7 +544,7 @@ export default function Navbar() {
 
       {/* Search bar */}
       {searchOpen && (
-        <div className="border-t border-border bg-white px-4 py-3">
+        <div className="border-t border-border bg-background px-4 py-3">
           <div className="mx-auto max-w-2xl">
             <form onSubmit={handleSearchSubmit} className="relative">
               <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
@@ -498,7 +560,7 @@ export default function Navbar() {
 
             {/* Search results dropdown */}
             {searchQuery.trim().length >= 2 && (
-              <div className="mt-2 rounded-xl border border-border bg-white shadow-lg">
+              <div className="mt-2 rounded-xl border border-border bg-background shadow-lg">
                 {searchLoading ? (
                   <div className="flex items-center justify-center py-6">
                     <Loader2 className="h-5 w-5 animate-spin text-rosegold-dark" />
@@ -558,7 +620,7 @@ export default function Navbar() {
 
       {/* Mobile menu */}
       {mobileMenuOpen && (
-        <div className="border-t border-border bg-white md:hidden">
+        <div className="border-t border-border bg-background md:hidden">
           <nav className="flex flex-col p-4 gap-1">
             {navLinks.map((link) => (
               <Link
@@ -593,7 +655,7 @@ export default function Navbar() {
                   className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-coin"
                 >
                   <Coins className="h-5 w-5" />
-                  กระเป๋าเหรียญ ({userCoinBalance ?? 0})
+                  กระเป๋าเหรียญ ({(userCoinBalance ?? 0).toLocaleString("th-TH")})
                 </Link>
                 <button
                   onClick={() => {

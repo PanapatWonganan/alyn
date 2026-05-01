@@ -10,6 +10,7 @@ import {
   Skull,
   Scroll,
   BookOpen,
+  BookCheck,
   TrendingUp,
   Star,
   ArrowRight,
@@ -37,29 +38,41 @@ export default function HomePage() {
   const [genres, setGenres] = useState<any[]>([]);
   const [trendingNovels, setTrendingNovels] = useState<any[]>([]);
   const [latestNovels, setLatestNovels] = useState<any[]>([]);
+  const [completedNovels, setCompletedNovels] = useState<any[]>([]);
   const [featuredNovel, setFeaturedNovel] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const [genresRes, trendingRes, latestRes] = await Promise.all([
-          fetch("/api/genres"),
-          fetch("/api/novels?sort=popular&limit=4"),
-          fetch("/api/novels?sort=latest&limit=8"),
-        ]);
+        const [genresRes, trendingRes, latestRes, completedRes, featuredRes] =
+          await Promise.all([
+            fetch("/api/genres"),
+            fetch("/api/novels?sort=popular&limit=8"),
+            fetch("/api/novels?sort=latest&limit=8"),
+            fetch("/api/novels?status=COMPLETED&sort=popular&limit=8"),
+            fetch("/api/novels?featured=true&limit=1"),
+          ]);
 
         const genresData = await genresRes.json();
         const trendingData = await trendingRes.json();
         const latestData = await latestRes.json();
+        const completedData = await completedRes.json();
+        const featuredData = await featuredRes.json();
 
         setGenres(genresData.genres || []);
-        setTrendingNovels(trendingData.novels || []);
-        setLatestNovels(latestData.novels || []);
+        setTrendingNovels(trendingData.novels || trendingData.data || []);
+        setLatestNovels(latestData.novels || latestData.data || []);
+        setCompletedNovels(completedData.novels || completedData.data || []);
 
-        // Featured = most viewed novel
-        if (trendingData.novels?.length > 0) {
-          setFeaturedNovel(trendingData.novels[0]);
+        // Featured = admin-featured novel if exists, otherwise most viewed
+        const featuredList =
+          featuredData.novels || featuredData.data || [];
+        const trending = trendingData.novels || trendingData.data || [];
+        if (featuredList.length > 0) {
+          setFeaturedNovel(featuredList[0]);
+        } else if (trending.length > 0) {
+          setFeaturedNovel(trending[0]);
         }
       } catch (error) {
         console.error("Error fetching homepage data:", error);
@@ -93,7 +106,7 @@ export default function HomePage() {
           <div className="absolute top-10 left-10 h-72 w-72 rounded-full bg-rosegold blur-3xl" />
           <div className="absolute bottom-10 right-10 h-96 w-96 rounded-full bg-rosegold-dark blur-3xl" />
         </div>
-        <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
+        <div className="relative mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-16 lg:px-8">
           <div className="grid gap-12 lg:grid-cols-2 lg:gap-8 items-center">
             <div className="space-y-6">
               <div className="inline-flex items-center gap-2 rounded-full bg-rosegold/10 px-4 py-1.5 text-sm font-medium text-rosegold-dark">
@@ -129,7 +142,7 @@ export default function HomePage() {
             {featuredNovel && (
               <div className="relative">
                 <Link href={`/novel/${featuredNovel.id}`}>
-                  <div className="mx-auto max-w-sm rounded-2xl bg-white p-6 shadow-xl shadow-rosegold/5 transition-transform hover:scale-[1.02]">
+                  <div className="mx-auto max-w-sm rounded-2xl bg-background p-6 shadow-xl shadow-rosegold/5 transition-transform hover:scale-[1.02]">
                     <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-rosegold-dark">
                       <Star className="h-4 w-4 fill-rosegold" />
                       แนะนำวันนี้
@@ -178,14 +191,14 @@ export default function HomePage() {
       </section>
 
       {/* Genre Section */}
-      <section className="border-y border-border bg-white py-8">
+      <section className="sticky top-[104px] z-30 border-y border-border bg-background py-8 shadow-sm">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
             {genres.map((genre: any) => (
               <Link
                 key={genre.id}
                 href={`/ranking?genre=${genre.slug}`}
-                className="flex shrink-0 items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-sm font-medium text-brand-black/70 transition-all hover:border-rosegold hover:bg-cream hover:text-rosegold-dark"
+                className="flex shrink-0 items-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm font-medium text-brand-black/70 transition-all hover:border-rosegold hover:bg-cream hover:text-rosegold-dark"
               >
                 {genreIcons[genre.icon || ""] || (
                   <BookOpen className="h-4 w-4" />
@@ -224,8 +237,8 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:gap-6">
-            {trendingNovels.map((novel: any) => (
-              <NovelCard key={novel.id} {...novel} />
+            {trendingNovels.map((novel: any, index: number) => (
+              <NovelCard key={novel.id} rank={index + 1} {...novel} />
             ))}
           </div>
 
@@ -276,6 +289,42 @@ export default function HomePage() {
           )}
         </div>
       </section>
+
+      {/* Completed Section */}
+      {completedNovels.length > 0 && (
+        <section className="bg-background py-12 sm:py-16">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="mb-8 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-rosegold/10 p-2">
+                  <BookCheck className="h-5 w-5 text-rosegold-dark" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-brand-black sm:text-2xl">
+                    นิยายจบแล้ว
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    เรื่องราวที่เดินทางมาถึงปลายทางแล้ว
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/ranking?status=COMPLETED"
+                className="flex items-center gap-1 text-sm font-medium text-rosegold-dark hover:underline"
+              >
+                ดูทั้งหมด
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:gap-6">
+              {completedNovels.map((novel: any) => (
+                <NovelCard key={novel.id} {...novel} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* CTA Section */}
       <section className="bg-gradient-to-r from-rosegold-dark to-rosegold py-16">

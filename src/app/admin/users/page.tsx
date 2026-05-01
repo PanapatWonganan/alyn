@@ -11,6 +11,8 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  Ban,
+  CheckCircle2,
 } from "lucide-react";
 
 type UserRole = "READER" | "WRITER" | "ADMIN";
@@ -22,6 +24,7 @@ type UserData = {
   penName: string | null;
   avatar: string | null;
   role: UserRole;
+  isBanned: boolean;
   coinBalance: number;
   createdAt: string;
   _count: {
@@ -68,7 +71,7 @@ export default function AdminUsersPage() {
       }
 
       const data = await response.json();
-      setUsers(data.users);
+      setUsers(data.data);
       setPagination(data.pagination);
     } catch (err) {
       setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
@@ -115,6 +118,30 @@ export default function AdminUsersPage() {
         return <BookOpen className="w-4 h-4" />;
       default:
         return <User className="w-4 h-4" />;
+    }
+  };
+
+  const handleToggleBan = async (user: UserData) => {
+    const action = user.isBanned ? "unban" : "ban";
+    const label = user.isBanned ? "ยกเลิกการแบน" : "แบน";
+    if (
+      !window.confirm(
+        `ยืนยัน${label}ผู้ใช้ ${user.penName || user.name}?`
+      )
+    ) {
+      return;
+    }
+    try {
+      const response = await fetch(`/api/admin/users/${user.id}/${action}`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Failed");
+      }
+      fetchUsers();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
     }
   };
 
@@ -293,14 +320,22 @@ export default function AdminUsersPage() {
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <span
-                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${getRoleBadgeClass(
-                                user.role
-                              )}`}
-                            >
-                              {getRoleIcon(user.role)}
-                              {getRoleLabel(user.role)}
-                            </span>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${getRoleBadgeClass(
+                                  user.role
+                                )}`}
+                              >
+                                {getRoleIcon(user.role)}
+                                {getRoleLabel(user.role)}
+                              </span>
+                              {user.isBanned && (
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                                  <Ban className="w-3 h-3" />
+                                  ถูกแบน
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-900">
                             {user._count.novels}
@@ -314,12 +349,37 @@ export default function AdminUsersPage() {
                             )}
                           </td>
                           <td className="px-6 py-4 text-right">
-                            <Link
-                              href={`/admin/users/${user.id}`}
-                              className="text-rosegold-dark hover:text-rosegold-dark/80 font-medium text-sm"
-                            >
-                              ดูรายละเอียด
-                            </Link>
+                            <div className="flex items-center justify-end gap-3">
+                              {user.role !== "ADMIN" && (
+                                <button
+                                  onClick={() => handleToggleBan(user)}
+                                  className={`inline-flex items-center gap-1 text-sm font-medium ${
+                                    user.isBanned
+                                      ? "text-green-600 hover:text-green-700"
+                                      : "text-red-600 hover:text-red-700"
+                                  }`}
+                                  title={user.isBanned ? "ยกเลิกการแบน" : "แบนผู้ใช้"}
+                                >
+                                  {user.isBanned ? (
+                                    <>
+                                      <CheckCircle2 className="w-4 h-4" />
+                                      ยกเลิกแบน
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Ban className="w-4 h-4" />
+                                      แบน
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                              <Link
+                                href={`/admin/users/${user.id}`}
+                                className="text-rosegold-dark hover:text-rosegold-dark/80 font-medium text-sm"
+                              >
+                                ดูรายละเอียด
+                              </Link>
+                            </div>
                           </td>
                         </tr>
                       ))

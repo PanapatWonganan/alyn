@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/auth-utils";
 import { apiPaginated, apiMessage, apiError, handleApiError, parsePagination, calculatePagination } from "@/lib/api-response";
+import { createAndPushNotification } from "@/lib/notification-service";
 
 // POST /api/donations - Send donation to a writer
 export async function POST(request: NextRequest) {
@@ -92,6 +93,23 @@ export async function POST(request: NextRequest) {
 
       return updatedSender;
     });
+
+    // Notify receiver (best effort, outside transaction)
+    try {
+      const senderName =
+        (session.user as unknown as { penName?: string; name?: string }).penName ||
+        (session.user as unknown as { name?: string }).name ||
+        "ผู้สนับสนุน";
+      await createAndPushNotification({
+        userId: receiverId,
+        type: "DONATION",
+        title: "ได้รับโดเนท",
+        message: `${senderName} โดเนทให้คุณ ${amount} เหรียญ${message ? `: ${message}` : ""}`,
+        link: `/wallet`,
+      });
+    } catch (err) {
+      console.error("Failed to send donation notification:", err);
+    }
 
     return apiMessage(
       `โดเนท ${amount} เหรียญสำเร็จ`,

@@ -35,7 +35,7 @@ export default function WriteDashboardPage() {
           `/api/novels?authorId=${session!.user!.id}&limit=50`
         );
         const data = await res.json();
-        setNovels(data.novels || []);
+        setNovels(data.data || []);
       } catch (error) {
         console.error("Error fetching novels:", error);
       } finally {
@@ -98,12 +98,20 @@ export default function WriteDashboardPage() {
             </p>
           </div>
           {(userRole === "WRITER" || userRole === "ADMIN") && (
-            <Link href="/write/new">
-              <Button>
-                <Plus className="h-5 w-5" />
-                สร้างนิยายใหม่
-              </Button>
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link href="/write/analytics">
+                <Button variant="outline">
+                  <BarChart3 className="h-5 w-5" />
+                  ดูสถิติ
+                </Button>
+              </Link>
+              <Link href="/write/new">
+                <Button>
+                  <Plus className="h-5 w-5" />
+                  สร้างนิยายใหม่
+                </Button>
+              </Link>
+            </div>
           )}
         </div>
 

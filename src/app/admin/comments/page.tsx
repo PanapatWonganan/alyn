@@ -27,11 +27,13 @@ interface Comment {
 }
 
 interface ApiResponse {
-  comments: Comment[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
+  data: Comment[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
 }
 
 export default function AdminCommentsPage() {
@@ -60,9 +62,9 @@ export default function AdminCommentsPage() {
       if (!response.ok) throw new Error("Failed to fetch comments");
 
       const data: ApiResponse = await response.json();
-      setComments(data.comments);
-      setTotalPages(data.totalPages);
-      setTotal(data.total);
+      setComments(data.data);
+      setTotalPages(data.pagination.totalPages);
+      setTotal(data.pagination.total);
     } catch (error) {
       console.error("Error fetching comments:", error);
       alert("เกิดข้อผิดพลาดในการโหลดข้อมูลความคิดเห็น");

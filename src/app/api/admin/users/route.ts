@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
           penName: true,
           avatar: true,
           role: true,
+          isBanned: true,
           coinBalance: true,
           createdAt: true,
           _count: {

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/auth-utils";
-import { apiSuccess, apiMessage, apiError, handleApiError } from "@/lib/api-response";
+import { apiSuccess, apiError, handleApiError } from "@/lib/api-response";
 import { NextResponse } from "next/server";
 
 // GET /api/bookmarks - Get user's bookmarks

@@ -24,10 +24,10 @@ export interface PaginationMeta {
 /**
  * Success response for single resource
  * @example apiSuccess({ novel: { id: 1, title: "..." } })
- * Returns: { data: { novel: { ... } } }
+ * Returns: { novel: { ... } }
  */
-export function apiSuccess<T>(data: T, status = 200): NextResponse {
-  return NextResponse.json({ data }, { status });
+export function apiSuccess<T extends Record<string, unknown>>(data: T, status = 200): NextResponse {
+  return NextResponse.json(data, { status });
 }
 
 /**
