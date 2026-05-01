@@ -243,6 +243,91 @@ class BookmarkService {
   }
 }
 
+/// Daily check-in — GET /api/v1/checkin/status, POST /api/v1/checkin/claim
+class CheckInService {
+  final ApiClient client;
+  CheckInService(this.client);
+
+  Future<CheckInStatus> status() async {
+    try {
+      final res = await client.dio.get('/api/v1/checkin/status');
+      return CheckInStatus.fromJson(Map<String, dynamic>.from(res.data as Map));
+    } on DioException catch (e) {
+      throw ApiClient.toApiException(e);
+    }
+  }
+
+  Future<CheckInClaimResult> claim() async {
+    try {
+      final res = await client.dio.post('/api/v1/checkin/claim');
+      return CheckInClaimResult.fromJson(
+          Map<String, dynamic>.from(res.data as Map));
+    } on DioException catch (e) {
+      throw ApiClient.toApiException(e);
+    }
+  }
+}
+
+class CheckInStatus {
+  final bool canCheckIn;
+  final int currentStreak;
+  final int longestStreak;
+  final int nextStreakDay; // 1..7
+  final int nextReward;
+  final List<int> rewardSchedule;
+  final DateTime? lastCheckInAt;
+  final int coinBalance;
+
+  const CheckInStatus({
+    required this.canCheckIn,
+    required this.currentStreak,
+    required this.longestStreak,
+    required this.nextStreakDay,
+    required this.nextReward,
+    required this.rewardSchedule,
+    required this.lastCheckInAt,
+    required this.coinBalance,
+  });
+
+  factory CheckInStatus.fromJson(Map<String, dynamic> j) {
+    final schedule = (j['rewardSchedule'] as List?)?.whereType<num>().map((e) => e.toInt()).toList() ?? const <int>[];
+    return CheckInStatus(
+      canCheckIn: j['canCheckIn'] == true,
+      currentStreak: (j['currentStreak'] as num?)?.toInt() ?? 0,
+      longestStreak: (j['longestStreak'] as num?)?.toInt() ?? 0,
+      nextStreakDay: (j['nextStreakDay'] as num?)?.toInt() ?? 1,
+      nextReward: (j['nextReward'] as num?)?.toInt() ?? 0,
+      rewardSchedule: schedule,
+      lastCheckInAt:
+          j['lastCheckInAt'] is String ? DateTime.tryParse(j['lastCheckInAt'] as String) : null,
+      coinBalance: (j['coinBalance'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+class CheckInClaimResult {
+  final int coinsEarned;
+  final int newStreak;
+  final int newBalance;
+  final List<int> rewardSchedule;
+  const CheckInClaimResult({
+    required this.coinsEarned,
+    required this.newStreak,
+    required this.newBalance,
+    required this.rewardSchedule,
+  });
+
+  factory CheckInClaimResult.fromJson(Map<String, dynamic> j) {
+    final schedule = (j['rewardSchedule'] as List?)?.whereType<num>().map((e) => e.toInt()).toList() ?? const <int>[];
+    return CheckInClaimResult(
+      coinsEarned: (j['coinsEarned'] as num?)?.toInt() ?? 0,
+      newStreak: (j['newStreak'] as num?)?.toInt() ?? 1,
+      newBalance: (j['newBalance'] as num?)?.toInt() ?? 0,
+      rewardSchedule: schedule,
+    );
+  }
+}
+
 /// ReadingProgress — GET /api/reading-progress
 class ProgressService {
   final ApiClient client;

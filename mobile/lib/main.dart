@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'api/api_client.dart';
 import 'api/models.dart';
 import 'data/models.dart';
+import 'screens/checkin_screen.dart';
 import 'screens/detail_screen.dart';
 import 'screens/discover_screen.dart';
 import 'screens/home_screen.dart';
@@ -22,7 +23,7 @@ void main() {
   runApp(const AlynApp());
 }
 
-enum _Screen { onboarding, login, main, detail, reader }
+enum _Screen { onboarding, login, main, detail, reader, checkin }
 
 class AlynApp extends StatefulWidget {
   const AlynApp({super.key});
@@ -113,6 +114,7 @@ class _AppShellState extends State<_AppShell> {
   void _backToDetail() => setState(() => _screen = _Screen.detail);
 
   void _goLogin() => setState(() => _screen = _Screen.login);
+  void _goCheckIn() => setState(() => _screen = _Screen.checkin);
 
   @override
   Widget build(BuildContext context) {
@@ -168,6 +170,10 @@ class _AppShellState extends State<_AppShell> {
       );
     }
 
+    if (_screen == _Screen.checkin) {
+      return CheckInScreen(onBack: _goBack);
+    }
+
     // Main tabbed shell
     Widget body;
     switch (_tab) {
@@ -188,6 +194,7 @@ class _AppShellState extends State<_AppShell> {
           onToggleTheme: widget.theme.toggle,
           mode: widget.theme.mode,
           onLoginRequested: _goLogin,
+          onCheckInRequested: _goCheckIn,
         );
         break;
       case 'home':
