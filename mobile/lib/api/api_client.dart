@@ -56,7 +56,8 @@ class ApiClient {
     // Don't attach token to the auth endpoints themselves
     final path = options.path;
     final skipAuth = path.contains('/api/v1/auth/token') ||
-        path.contains('/api/v1/auth/refresh');
+        path.contains('/api/v1/auth/refresh') ||
+        path.contains('/api/v1/auth/register');
     if (!skipAuth) {
       final token = await tokens.readAccess();
       if (token != null && token.isNotEmpty) {

@@ -2,7 +2,7 @@ import 'package:dio/dio.dart';
 import 'api_client.dart';
 import 'models.dart';
 
-/// Auth — POST /api/v1/auth/token, /api/v1/auth/refresh
+/// Auth — POST /api/v1/auth/{token,register,refresh,logout}
 class AuthService {
   final ApiClient client;
   AuthService(this.client);
@@ -24,7 +24,46 @@ class AuthService {
     }
   }
 
-  Future<void> logout() async => client.tokens.clear();
+  /// Registers a new account and returns the user + stores tokens on success.
+  /// `role` is "READER" or "WRITER".
+  Future<ApiUser> register({
+    required String email,
+    required String password,
+    required String name,
+    String? penName,
+    String role = 'READER',
+  }) async {
+    try {
+      final res = await client.dio.post(
+        '/api/v1/auth/register',
+        data: {
+          'email': email,
+          'password': password,
+          'name': name,
+          if (penName != null && penName.isNotEmpty) 'penName': penName,
+          'role': role,
+        },
+      );
+      final body = res.data as Map<String, dynamic>;
+      final access = body['accessToken'] as String;
+      final refresh = body['refreshToken'] as String;
+      await client.tokens.write(access: access, refresh: refresh);
+      return ApiUser.fromJson(Map<String, dynamic>.from(body['user']));
+    } on DioException catch (e) {
+      throw ApiClient.toApiException(e);
+    }
+  }
+
+  /// Tells the server the client is logging out and clears stored tokens.
+  /// Best-effort — clears local tokens even if the server call fails.
+  Future<void> logout() async {
+    try {
+      await client.dio.post('/api/v1/auth/logout');
+    } on DioException {
+      // Ignore — token denylist is server-side optional today.
+    }
+    await client.tokens.clear();
+  }
 }
 
 /// Novels — GET /api/novels, /api/novels/[id]

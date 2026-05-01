@@ -3,6 +3,7 @@ import { apiSuccess, apiError, handleApiError } from "@/lib/api-response";
 import { db } from "@/lib/db";
 import { generateAccessToken, generateRefreshToken } from "@/lib/jwt";
 import { compare } from "bcryptjs";
+import { rateLimitRequest } from "@/lib/rate-limit";
 
 /**
  * POST /api/v1/auth/token
@@ -32,6 +33,11 @@ import { compare } from "bcryptjs";
  */
 export async function POST(request: NextRequest) {
   try {
+    const limit = rateLimitRequest(request, "v1:auth:token", 5, 15 * 60 * 1000);
+    if (!limit.success) {
+      return apiError("คำขอมากเกินไป กรุณาลองอีกครั้งในภายหลัง", 429, "RATE_LIMITED");
+    }
+
     const body = await request.json();
     const { email, password } = body;
 
@@ -55,6 +61,7 @@ export async function POST(request: NextRequest) {
         penName: true,
         coinBalance: true,
         passwordHash: true,
+        isBanned: true,
       },
     });
 
@@ -67,6 +74,10 @@ export async function POST(request: NextRequest) {
 
     if (!isPasswordValid) {
       return apiError("อีเมลหรือรหัสผ่านไม่ถูกต้อง", 401, "INVALID_CREDENTIALS");
+    }
+
+    if (user.isBanned) {
+      return apiError("บัญชีนี้ถูกระงับการใช้งาน", 403, "ACCOUNT_BANNED");
     }
 
     // Generate tokens

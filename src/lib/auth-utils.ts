@@ -33,10 +33,12 @@ async function getSessionFromBearerToken() {
       role: true,
       penName: true,
       coinBalance: true,
+      isBanned: true,
     },
   });
 
   if (!user) return null;
+  if (user.isBanned) return null;
 
   // Return a session-like object compatible with NextAuth session type
   return {

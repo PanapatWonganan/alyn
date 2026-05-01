@@ -1,7 +1,7 @@
 import { SignJWT, jwtVerify } from "jose";
 
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.NEXTAUTH_SECRET || "fallback-secret"
+  process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "fallback-secret"
 );
 
 const ACCESS_TOKEN_EXPIRY = "1h"; // 1 hour
