@@ -243,6 +243,184 @@ class BookmarkService {
   }
 }
 
+/// IAP — GET /api/v1/iap/products, POST /api/v1/iap/{verify,restore}
+class IapService {
+  final ApiClient client;
+  IapService(this.client);
+
+  Future<List<CoinPack>> products() async {
+    try {
+      final res = await client.dio.get('/api/v1/iap/products');
+      final list = (res.data as Map)['products'] as List? ?? [];
+      return list
+          .map((e) => CoinPack.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    } on DioException catch (e) {
+      throw ApiClient.toApiException(e);
+    }
+  }
+
+  /// Verify a single purchaseToken with the backend; on success the user
+  /// receives `coinsGranted` coins (server-side; not the client). Returns
+  /// the user's new coin balance.
+  Future<IapVerifyResult> verify({
+    required String productId,
+    required String purchaseToken,
+    required String packageName,
+    String? orderId,
+  }) async {
+    try {
+      final res = await client.dio.post(
+        '/api/v1/iap/verify',
+        data: {
+          'productId': productId,
+          'purchaseToken': purchaseToken,
+          'packageName': packageName,
+          if (orderId != null) 'orderId': orderId,
+        },
+      );
+      final body = Map<String, dynamic>.from(res.data as Map);
+      return IapVerifyResult(
+        success: body['success'] == true,
+        newBalance: (body['newBalance'] as num?)?.toInt() ?? 0,
+        coinsGranted: (body['coinsGranted'] as num?)?.toInt() ?? 0,
+        transactionId: body['transactionId'] as String?,
+      );
+    } on DioException catch (e) {
+      throw ApiClient.toApiException(e);
+    }
+  }
+}
+
+class CoinPack {
+  final String productId;
+  final String name;
+  final int coins;
+  final int bonus;
+  final int total;
+  final int priceThb;
+  const CoinPack({
+    required this.productId,
+    required this.name,
+    required this.coins,
+    required this.bonus,
+    required this.total,
+    required this.priceThb,
+  });
+  factory CoinPack.fromJson(Map<String, dynamic> j) => CoinPack(
+        productId: (j['productId'] ?? '') as String,
+        name: (j['name'] ?? '') as String,
+        coins: (j['coins'] as num?)?.toInt() ?? 0,
+        bonus: (j['bonus'] as num?)?.toInt() ?? 0,
+        total: (j['total'] as num?)?.toInt() ?? 0,
+        priceThb: (j['priceThb'] as num?)?.toInt() ?? 0,
+      );
+}
+
+class IapVerifyResult {
+  final bool success;
+  final int newBalance;
+  final int coinsGranted;
+  final String? transactionId;
+  const IapVerifyResult({
+    required this.success,
+    required this.newBalance,
+    required this.coinsGranted,
+    this.transactionId,
+  });
+}
+
+/// AdMob rewards — /api/v1/ads/*
+class AdsService {
+  final ApiClient client;
+  AdsService(this.client);
+
+  Future<AdRewardsStatus> status() async {
+    try {
+      final res = await client.dio.get('/api/v1/ads/rewards/status');
+      return AdRewardsStatus.fromJson(Map<String, dynamic>.from(res.data as Map));
+    } on DioException catch (e) {
+      throw ApiClient.toApiException(e);
+    }
+  }
+
+  /// Returns the customData token to set on ServerSideVerificationOptions
+  /// before showing the rewarded ad.
+  Future<String> requestToken({required String adUnitId}) async {
+    try {
+      final res = await client.dio.post(
+        '/api/v1/ads/rewards/request-token',
+        data: {'adUnitId': adUnitId},
+      );
+      return (res.data as Map)['customData'] as String;
+    } on DioException catch (e) {
+      throw ApiClient.toApiException(e);
+    }
+  }
+
+  /// Polls for the most recent SSV-verified grants — used to confirm the
+  /// reward landed before updating the wallet UI.
+  Future<List<AdRewardEntry>> recent() async {
+    try {
+      final res = await client.dio.get('/api/v1/ads/rewards/recent');
+      final list = (res.data as Map)['rewards'] as List? ?? [];
+      return list
+          .map((e) => AdRewardEntry.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    } on DioException catch (e) {
+      throw ApiClient.toApiException(e);
+    }
+  }
+}
+
+class AdRewardsStatus {
+  final int remaining;
+  final int maxPerDay;
+  final int cooldownMs;
+  final DateTime? nextAvailableAt;
+  final int coinsPerAd;
+  const AdRewardsStatus({
+    required this.remaining,
+    required this.maxPerDay,
+    required this.cooldownMs,
+    required this.nextAvailableAt,
+    required this.coinsPerAd,
+  });
+  factory AdRewardsStatus.fromJson(Map<String, dynamic> j) => AdRewardsStatus(
+        remaining: (j['remaining'] as num?)?.toInt() ?? 0,
+        maxPerDay: (j['maxPerDay'] as num?)?.toInt() ?? 5,
+        cooldownMs: (j['cooldownMs'] as num?)?.toInt() ?? 300000,
+        nextAvailableAt: j['nextAvailableAt'] is String
+            ? DateTime.tryParse(j['nextAvailableAt'] as String)
+            : null,
+        coinsPerAd: (j['coinsPerAd'] as num?)?.toInt() ?? 5,
+      );
+}
+
+class AdRewardEntry {
+  final String id;
+  final int coinsEarned;
+  final bool verified;
+  final DateTime? createdAt;
+  final String rewardType;
+  const AdRewardEntry({
+    required this.id,
+    required this.coinsEarned,
+    required this.verified,
+    required this.createdAt,
+    required this.rewardType,
+  });
+  factory AdRewardEntry.fromJson(Map<String, dynamic> j) => AdRewardEntry(
+        id: (j['id'] ?? '') as String,
+        coinsEarned: (j['coinsEarned'] as num?)?.toInt() ?? 0,
+        verified: j['verified'] == true,
+        createdAt: j['createdAt'] is String
+            ? DateTime.tryParse(j['createdAt'] as String)
+            : null,
+        rewardType: (j['rewardType'] ?? 'daily_bonus') as String,
+      );
+}
+
 /// Daily check-in — GET /api/v1/checkin/status, POST /api/v1/checkin/claim
 class CheckInService {
   final ApiClient client;

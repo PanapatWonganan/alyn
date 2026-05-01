@@ -12,6 +12,7 @@ import 'screens/login_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/reader_screen.dart';
+import 'screens/wallet_screen.dart';
 import 'screens/writer_screen.dart';
 import 'state/auth_provider.dart';
 import 'state/novels_provider.dart';
@@ -23,7 +24,7 @@ void main() {
   runApp(const AlynApp());
 }
 
-enum _Screen { onboarding, login, main, detail, reader, checkin }
+enum _Screen { onboarding, login, main, detail, reader, checkin, wallet }
 
 class AlynApp extends StatefulWidget {
   const AlynApp({super.key});
@@ -115,6 +116,7 @@ class _AppShellState extends State<_AppShell> {
 
   void _goLogin() => setState(() => _screen = _Screen.login);
   void _goCheckIn() => setState(() => _screen = _Screen.checkin);
+  void _goWallet() => setState(() => _screen = _Screen.wallet);
 
   @override
   Widget build(BuildContext context) {
@@ -174,6 +176,10 @@ class _AppShellState extends State<_AppShell> {
       return CheckInScreen(onBack: _goBack);
     }
 
+    if (_screen == _Screen.wallet) {
+      return WalletScreen(onBack: _goBack);
+    }
+
     // Main tabbed shell
     Widget body;
     switch (_tab) {
@@ -195,6 +201,7 @@ class _AppShellState extends State<_AppShell> {
           mode: widget.theme.mode,
           onLoginRequested: _goLogin,
           onCheckInRequested: _goCheckIn,
+          onWalletRequested: _goWallet,
         );
         break;
       case 'home':

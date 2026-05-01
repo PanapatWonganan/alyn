@@ -10,6 +10,7 @@ import '../state/auth_provider.dart';
 import '../state/novels_provider.dart';
 import '../theme/palette.dart';
 import '../theme/typography.dart';
+import '../widgets/age_gate_modal.dart';
 import '../widgets/book_cover.dart';
 import '../widgets/divider.dart';
 import '../widgets/icon_button.dart';
@@ -54,6 +55,16 @@ class _DetailScreenState extends State<DetailScreen> {
     try {
       final n = await context.read<NovelsProvider>().detail(widget.book.id);
       if (!mounted) return;
+      // Adult novels require an age-gate confirmation (30-day cache).
+      // If declined, bounce back to wherever the user came from.
+      if (n.isAdult) {
+        final ok = await AgeGateModal.ensureVerified(context);
+        if (!mounted) return;
+        if (!ok) {
+          widget.onBack();
+          return;
+        }
+      }
       setState(() {
         _novel = n;
         bookmarked = n.isBookmarked;

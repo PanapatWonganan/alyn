@@ -12,12 +12,14 @@ class ProfileScreen extends StatelessWidget {
   final ThemeMode mode;
   final VoidCallback? onLoginRequested;
   final VoidCallback? onCheckInRequested;
+  final VoidCallback? onWalletRequested;
   const ProfileScreen({
     super.key,
     required this.onToggleTheme,
     required this.mode,
     this.onLoginRequested,
     this.onCheckInRequested,
+    this.onWalletRequested,
   });
 
   @override
@@ -132,50 +134,99 @@ class ProfileScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (onCheckInRequested != null) ...[
+                if (onCheckInRequested != null || onWalletRequested != null) ...[
                   const SizedBox(height: 12),
-                  GestureDetector(
-                    onTap: onCheckInRequested,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.centerLeft,
-                          end: Alignment.centerRight,
-                          colors: [p.primary, p.primaryDeep],
-                        ),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.card_giftcard, color: p.bg),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'เช็คอินรายวัน',
-                                  style: AlynFonts.thai(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    color: p.bg,
-                                  ),
+                  Row(
+                    children: [
+                      if (onCheckInRequested != null)
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: onCheckInRequested,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [p.primary, p.primaryDeep],
                                 ),
-                                Text(
-                                  'รับเหรียญฟรีทุกวัน',
-                                  style: AlynFonts.thai(
-                                    fontSize: 11.5,
-                                    color: p.bg.withValues(alpha: 0.85),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.card_giftcard, color: p.bg, size: 22),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'เช็คอิน',
+                                          style: AlynFonts.thai(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w700,
+                                            color: p.bg,
+                                          ),
+                                        ),
+                                        Text(
+                                          'เหรียญฟรี',
+                                          style: AlynFonts.thai(
+                                            fontSize: 11,
+                                            color: p.bg.withValues(alpha: 0.85),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                          Icon(Icons.arrow_forward, color: p.bg, size: 18),
-                        ],
-                      ),
-                    ),
+                        ),
+                      if (onCheckInRequested != null && onWalletRequested != null)
+                        const SizedBox(width: 10),
+                      if (onWalletRequested != null)
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: onWalletRequested,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                              decoration: BoxDecoration(
+                                color: p.ink,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.account_balance_wallet, color: p.bg, size: 22),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'เติมเหรียญ',
+                                          style: AlynFonts.thai(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w700,
+                                            color: p.bg,
+                                          ),
+                                        ),
+                                        Text(
+                                          'Google Play',
+                                          style: AlynFonts.thai(
+                                            fontSize: 11,
+                                            color: p.bg.withValues(alpha: 0.85),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ] else ...[

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/services.dart';
+import '../services/rewarded_ad_service.dart';
 import '../state/auth_provider.dart';
 import '../theme/palette.dart';
 import '../theme/typography.dart';
@@ -19,9 +20,11 @@ class CheckInScreen extends StatefulWidget {
 
 class _CheckInScreenState extends State<CheckInScreen> {
   CheckInStatus? _status;
+  AdRewardsStatus? _adsStatus;
   bool _loading = true;
   String? _error;
   bool _claiming = false;
+  bool _watchingAd = false;
 
   @override
   void initState() {
@@ -37,9 +40,16 @@ class _CheckInScreenState extends State<CheckInScreen> {
     final auth = context.read<AuthProvider>();
     try {
       final s = await CheckInService(auth.api).status();
+      AdRewardsStatus? a;
+      try {
+        a = await AdsService(auth.api).status();
+      } catch (_) {
+        a = null; // Ad rewards are optional; check-in still works without them.
+      }
       if (!mounted) return;
       setState(() {
         _status = s;
+        _adsStatus = a;
         _loading = false;
       });
     } on ApiException catch (e) {
@@ -54,6 +64,60 @@ class _CheckInScreenState extends State<CheckInScreen> {
         _error = 'โหลดไม่สำเร็จ';
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _watchAd() async {
+    if (_watchingAd) return;
+    final auth = context.read<AuthProvider>();
+    setState(() => _watchingAd = true);
+    final svc = RewardedAdService(ads: AdsService(auth.api), client: auth.api);
+    try {
+      await svc.load();
+      await svc.show();
+
+      // The actual coin grant lands on the backend via SSV. Poll briefly to
+      // surface confirmation in the UI before refreshing balance.
+      final ads = AdsService(auth.api);
+      final before = (await ads.recent()).map((r) => r.id).toSet();
+      bool confirmed = false;
+      for (int i = 0; i < 8 && !confirmed; i++) {
+        await Future.delayed(const Duration(seconds: 1));
+        final now = await ads.recent();
+        for (final r in now) {
+          if (!before.contains(r.id) && r.verified && r.coinsEarned > 0) {
+            confirmed = true;
+            break;
+          }
+        }
+      }
+      if (!mounted) return;
+      if (confirmed) {
+        await _load();
+        if (!mounted) return;
+        // Refresh user balance via /me — the SSV callback updates it.
+        try {
+          final me = await UserService(auth.api).me();
+          auth.updateCoinBalance(me.coinBalance);
+        } catch (_) {}
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ได้รับเหรียญจากการดูโฆษณาแล้ว')),
+        );
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('กำลังประมวลผล กรุณารอสักครู่แล้วเช็กยอดเหรียญ'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      svc.dispose();
+      if (mounted) setState(() => _watchingAd = false);
     }
   }
 
@@ -97,8 +161,11 @@ class _CheckInScreenState extends State<CheckInScreen> {
                 ? _ErrorView(message: _error!, onRetry: _load, onBack: widget.onBack)
                 : _Body(
                     status: _status!,
+                    adsStatus: _adsStatus,
                     claiming: _claiming,
+                    watchingAd: _watchingAd,
                     onClaim: _claim,
+                    onWatchAd: _watchAd,
                     onBack: widget.onBack,
                   ),
       ),
@@ -108,13 +175,19 @@ class _CheckInScreenState extends State<CheckInScreen> {
 
 class _Body extends StatelessWidget {
   final CheckInStatus status;
+  final AdRewardsStatus? adsStatus;
   final bool claiming;
+  final bool watchingAd;
   final VoidCallback onClaim;
+  final VoidCallback onWatchAd;
   final VoidCallback onBack;
   const _Body({
     required this.status,
+    required this.adsStatus,
     required this.claiming,
+    required this.watchingAd,
     required this.onClaim,
+    required this.onWatchAd,
     required this.onBack,
   });
 
@@ -229,6 +302,97 @@ class _Body extends StatelessWidget {
             'ทุก 7 วันเริ่มรอบใหม่ · ขาด 1 วันเริ่มต้นที่ Day 1',
             textAlign: TextAlign.center,
             style: AlynFonts.mono(fontSize: 10, color: p.inkMuted, letterSpacing: 1.4),
+          ),
+          if (adsStatus != null) ...[
+            const SizedBox(height: 18),
+            _AdRewardSection(
+              status: adsStatus!,
+              busy: watchingAd,
+              onTap: onWatchAd,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AdRewardSection extends StatelessWidget {
+  final AdRewardsStatus status;
+  final bool busy;
+  final VoidCallback onTap;
+  const _AdRewardSection({
+    required this.status,
+    required this.busy,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = PaletteScope.of(context);
+    final canWatch = status.remaining > 0;
+    return Container(
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: p.stroke),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.play_circle_outline, color: p.primaryDeep, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'ดูโฆษณารับเหรียญ',
+                style: AlynFonts.thai(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: p.ink,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                'เหลือ ${status.remaining}/${status.maxPerDay}',
+                style: AlynFonts.mono(fontSize: 10, color: p.inkMuted, letterSpacing: 1.0),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '+${status.coinsPerAd} เหรียญต่อครั้ง · เว้น ${(status.cooldownMs / 60000).round()} นาทีระหว่างครั้ง',
+            style: AlynFonts.thai(fontSize: 12, color: p.inkSoft),
+          ),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: (busy || !canWatch) ? null : onTap,
+            child: Container(
+              height: 44,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: canWatch ? p.ink : p.inkMuted,
+                borderRadius: BorderRadius.circular(100),
+              ),
+              child: busy
+                  ? SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: p.bg,
+                      ),
+                    )
+                  : Text(
+                      canWatch ? 'ดูโฆษณา' : 'ครบจำนวนวันนี้แล้ว',
+                      style: AlynFonts.thai(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: p.bg,
+                      ),
+                    ),
+            ),
           ),
         ],
       ),

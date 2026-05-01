@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { sendFcmToTokens } from "./fcm";
 
 export interface PushNotificationPayload {
   title: string;
@@ -7,33 +8,28 @@ export interface PushNotificationPayload {
 }
 
 /**
- * Send push notification to a specific user's devices
+ * Send push notification to a specific user's devices via FCM. Logs only
+ * (mock) when FCM_SERVICE_ACCOUNT_JSON is unset. Dead tokens reported by
+ * FCM are pruned from the database so subsequent sends don't retry them.
  */
 export async function sendPushToUser(
   userId: string,
   payload: PushNotificationPayload
 ): Promise<void> {
-  // Get all device tokens for this user
   const devices = await db.deviceToken.findMany({
     where: { userId },
+    select: { token: true },
   });
-
   if (devices.length === 0) return;
 
-  // Group by platform
-  const iosTokens = devices.filter(d => d.platform === "ios").map(d => d.token);
-  const androidTokens = devices.filter(d => d.platform === "android").map(d => d.token);
+  const tokens = devices.map((d) => d.token);
+  const result = await sendFcmToTokens(tokens, payload);
 
-  // TODO: Implement actual FCM sending
-  // For now, log the notification
-  console.log(`[Push] Sending to user ${userId}:`, {
-    payload,
-    iosTokens: iosTokens.length,
-    androidTokens: androidTokens.length,
-  });
-
-  // When FCM is integrated, use:
-  // await sendFCM(tokens, payload);
+  if (result.invalidTokens.length > 0) {
+    await db.deviceToken
+      .deleteMany({ where: { token: { in: result.invalidTokens } } })
+      .catch((e) => console.error("[Push] Failed to prune dead tokens:", e));
+  }
 }
 
 /**
